@@ -14,13 +14,13 @@
  *  ENTITIES-MODUS (v1-kompatibel):
  *    entity: sensor.xxx   ODER   entities: [...]
  *
- * @version 0.9.0
+ * @version 1.0.1
  * @license MIT
  */
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-const CARD_VERSION = '0.9.0';
+const CARD_VERSION = '1.0.1';
 const CARD_NAME    = 'History Table Card';
 const CARD_TAG     = 'history-table-card';
 
@@ -214,7 +214,7 @@ const EDITOR_TRANSLATIONS = {
       'Gelb – Warnung', 'Pink – Domain-Akzent', 'Indigo – Navigation',
       'Hellgrün – Klimaanlage', 'Orange – Heizung', 'Blaugrau – Neutral',
     ],
-    sec_energy_dash: 'Energy Dashboard Vorlage',
+    sec_energy_dash: 'Energy Dashboard Vorlage <br>(Wichtig: vorher im Dashboard eine energy-date-selection Card anlegen!)',
     btn_load_energy_v: '⚡ Aus Energy-Dashboard (Vertikal)',
     btn_load_energy_h: '⚡ Aus Energy-Dashboard (Horizontal)',
     msg_energy_ok: 'Vorlage erstellt! Spalten wurden automatisch befüllt.',
@@ -326,7 +326,7 @@ const EDITOR_TRANSLATIONS = {
       'Yellow – Warning', 'Pink – Domain accent', 'Indigo – Navigation',
       'Light green – Climate', 'Orange – Heating', 'Blue-grey – Neutral',
     ],
-    sec_energy_dash: 'Energy Dashboard Template',
+    sec_energy_dash: 'Energy Dashboard Template <br>(Important: first add an energy-date-selection card to the dashboard!)',
     btn_load_energy_v: '⚡ Generate from Energy Dashboard (Vertical)',
     btn_load_energy_h: '⚡ Generate from Energy Dashboard (Horizontal)',
     msg_energy_ok: 'Template generated! Columns have been auto-populated.',

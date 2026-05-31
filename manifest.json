@@ -1,0 +1,12 @@
+{
+  "domain": "history_table_card",
+  "name": "History Table Card",
+  "config_flow": true,
+  "codeowners": ["@LiBe-net"],
+  "dependencies": ["http", "frontend", "lovelace"],
+  "documentation": "https://www.libe.net/energy-table",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/LiBe-net/history_table_card/issues",
+  "requirements": [],
+  "version": "1.0.1"
+}

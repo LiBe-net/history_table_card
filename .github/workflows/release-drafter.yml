@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - dev
-      - prep/v0.9
+      - prep/v1.0
   workflow_dispatch:
 
 permissions:
