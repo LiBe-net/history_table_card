@@ -1,7 +1,7 @@
 {
   "domain": "history_table_card",
   "name": "History Table Card",
-  "config_flow": true,
+  "config_flow": false,
   "codeowners": ["@LiBe-net"],
   "dependencies": ["http", "frontend", "lovelace"],
   "documentation": "https://www.libe.net/energy-table",
