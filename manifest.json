@@ -1,8 +1,8 @@
 {
   "domain": "history_table_card",
-  "name": "History Table Card",
-  "config_flow": false,
+  "name": "History Table Card",  
   "codeowners": ["@LiBe-net"],
+  "config_flow": false,
   "dependencies": ["http", "frontend", "lovelace"],
   "documentation": "https://www.libe.net/energy-table",
   "iot_class": "local_push",
