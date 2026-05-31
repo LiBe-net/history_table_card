@@ -17,3 +17,9 @@ jobs:
         uses: hacs/action@main
         with:
           category: plugin
+          
+  validate-hassfest:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v6"
+      - uses: "home-assistant/actions/hassfest@master"
