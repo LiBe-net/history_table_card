@@ -1654,11 +1654,18 @@ class HistoryTableCard extends HTMLElement {
         // Callbacks blockieren bis init angewendet (verhindert Flash mit Picker-Default "heute").
         if (initRange && !coll.__smcInitApplied) return;
 
+        // Always consume pending nav marker. During internal navigation HA can briefly emit
+        // compare_start/compare_end as null although compare mode is still active.
+        const _pendingNav = this._pendingNavRange;
+        this._pendingNavRange = null;
+
         // coll.start/end = vom Picker gesetzter Wert (immer aktuell).
         // state.start/end = HA-Backend-Antwort (kann normalisiert/null sein solange Fetch läuft).
         // → coll.start/end hat Vorrang, state.start/end als Fallback.
-        const rawS = coll.start ?? state.start;
-        const rawE = coll.end   ?? state.end;
+        // Bei interner Navigation bleibt der exakt angeforderte Zeitraum maßgeblich:
+        // HA normalisiert mehrtägige Bereiche sonst teils auf exklusive Tagesgrenzen.
+        const rawS = _pendingNav?.start ?? coll.start ?? state.start;
+        const rawE = _pendingNav?.end   ?? coll.end   ?? state.end;
         const s = rawS ? (rawS instanceof Date ? rawS : new Date(rawS)) : null;
         const e = rawE ? (rawE instanceof Date ? rawE : new Date(rawE)) : null;
 
@@ -1672,11 +1679,6 @@ class HistoryTableCard extends HTMLElement {
         const rawCE = coll.compare_end   ?? state.endCompare   ?? null;
         const cs = rawCS ? (rawCS instanceof Date ? rawCS : new Date(rawCS)) : null;
         const ce = rawCE ? (rawCE instanceof Date ? rawCE : new Date(rawCE)) : null;
-
-        // Always consume pending nav marker. During internal navigation HA can briefly emit
-        // compare_start/compare_end as null although compare mode is still active.
-        const _pendingNav = this._pendingNavRange;
-        this._pendingNavRange = null;
 
         // Preserve compare range across transient nulls during internal nav refresh.
         let nextCS = cs;
