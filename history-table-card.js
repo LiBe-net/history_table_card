@@ -143,7 +143,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_text_color: 'Erste-Spalte-Schriftfarbe',
     chk_enable_sort: 'Sortierung aktivieren',
     chk_zoom: 'Zeitraum verdoppeln', chk_nav: 'Nav-Menü', chk_reset: 'Reset-Button',
-    chk_date_links: 'Datum-Links', chk_back: 'Zurück-Button',
+    chk_date_links: 'Datum-Links',
     chk_show_nav_date: 'Datum einblenden', chk_nav_btns: 'Vor/Zurück Tasten', chk_show_quick_menu: 'Quick Menü einblenden',
     btn_add_col: '＋ Spalte hinzufügen',
     col_fallback: 'Spalte',
@@ -255,7 +255,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_text_color: 'First column text color',
     chk_enable_sort: 'Enable sort',
     chk_zoom: 'Double time range', chk_nav: 'Nav menu', chk_reset: 'Reset button',
-    chk_date_links: 'Date links', chk_back: 'Back button',
+    chk_date_links: 'Date links',
     chk_show_nav_date: 'Show date', chk_nav_btns: 'Prev/Next buttons', chk_show_quick_menu: 'Show quick menu',
     btn_add_col: '＋ Add column',
     col_fallback: 'Column',
@@ -341,7 +341,6 @@ const DEFAULT_CONFIG = {
   stat_type:    'mean',     // globaler Fallback-Typ
   days_to_show: 7,
   show_header:  true,
-  show_back_button:  false,
   scroll:       true,
   date_format:  'short',   // 'short' | 'medium' | 'long' | 'full'
   sort_col:     null,       // Standard-Sortierspalte (0-basiert), null = keine
@@ -439,7 +438,7 @@ const CARD_STYLES = `
     max-width: 100%;
   }
 
-  /* Titel + optionaler Zurück-Button als Gruppe – bleibt beim Umbruch linksbündig */
+  /* Titelgruppe – bleibt beim Umbruch linksbündig */
   .card-header-left {
     display: flex;
     align-items: center;
@@ -838,14 +837,6 @@ const CARD_STYLES = `
     margin-left:10px;
   }
 
-  .header-toolbar-btn.back {
-    font-size: 22px;
-    min-width: 30px;
-    height: 30px;
-    border-radius: 4px;
-    margin-right: 4px;
-    flex-shrink: 0;
-  }
   .header-toolbar-btn:hover { opacity: 1; }
   .header-toolbar-btn:hover:not(:disabled) {
     background: rgba(var(--rgb-primary-color, 3,169,244), 0.1);
@@ -1502,6 +1493,8 @@ class HistoryTableCard extends HTMLElement {
       }
       // show_filter – removed feature, drop silently
       delete c.show_filter;
+      // show_back_button – removed toolbar button, drop silently
+      delete c.show_back_button;
       // decimals – removed global precision; now per column/entity only
       delete c.decimals;
     }
@@ -3115,26 +3108,6 @@ class HistoryTableCard extends HTMLElement {
   }
 
   /**
-   * Stellt den vorherigen Zeitraum aus dem History-Stack wieder her.
-   */
-  _goBackEnergyPeriod() {
-    if (!this._energyHistory.length) return;
-    const { start, end } = this._energyHistory.pop();
-    const { coll } = this._getEnergyCollectionInfo();
-    if (this._config.collection_key && !coll) return;
-    this._loading = true;
-    this._render();
-    try {
-      if (coll) this._applyPeriodToCollection(coll, start, end);
-    } catch (err) {
-      console.warn('[HistoryTableCard] Energy-Back fehlgeschlagen:', err);
-    }
-    this._energyStart = start;
-    this._energyEnd   = end;
-    this._scheduleDataFetch();
-  }
-
-  /**
    * Verschiebt den gesamten Zeitraum um die aktuelle Spanne vorwärts oder rückwärts.
    * Start und End werden gleichzeitig verschoben; die Spannengröße bleibt erhalten.
    *
@@ -3531,11 +3504,6 @@ class HistoryTableCard extends HTMLElement {
           });
         });
       });
-      const btnBack = this.shadowRoot.querySelector('#btn-back');
-      if (btnBack) btnBack.addEventListener('click', () => {
-        if (this._loading) return;
-        this._goBackEnergyPeriod();
-      });
     }
 
     // Buttons that work in all range modes
@@ -3813,8 +3781,6 @@ class HistoryTableCard extends HTMLElement {
     const showReset    = config.show_reset_button !== false && !this._loading && (this._energyHistory.length > 0 || (this._periodOverride || '') !== (config.default_period || ''));
     const _betaCard    = new Set((config.beta_features || '').split(',').map(s => s.trim()));
     const betaH        = _betaCard.has('horizontal');
-    const betaBack     = _betaCard.has('backbutton');
-    const showBack     = betaBack && hasNav && this._energyHistory.length > 0 && !this._loading && (config.show_back_button ?? false);
     const dateFrom = escapeHtml(fmtDate.format(start));
     const dateTo   = escapeHtml(fmtDate.format(displayEnd));
 
@@ -3835,7 +3801,6 @@ class HistoryTableCard extends HTMLElement {
 
     const headerToolbar = `
       <span class="nav-group nav-left">
-        ${showBack    ? `<ha-icon icon="mdi:arrow-left" class="header-toolbar-btn back" id="btn-back"${dis} title="Zur\u00fcck"></ha-icon>` : ''}
         ${showReset ? `<ha-icon icon="mdi:restore" class="header-toolbar-btn" id="btn-reset"${dis} title="Standard Zeitspanne"></ha-icon>` : ''}
         ${showNavBtns ? `<ha-icon icon="mdi:chevron-left"  class="header-toolbar-btn" id="btn-prev"${dis} title="Vorherige Zeitspanne"></ha-icon>` : ''}
       </span>
@@ -5920,7 +5885,6 @@ class HistoryTableCardEditor extends HTMLElement {
     const betaNavDate    = _betaG.has('navdate');
     const betaNavButtons = _betaG.has('navbuttons');
     const betaZoomOut    = _betaG.has('zoomout');
-    const betaBackButton = _betaG.has('backbutton');
     const padKeys = ['card_padding_top','card_padding_right','card_padding_bottom','card_padding_left',
       'text_align_key','text_align_value','cell_padding','row_height','max_col_width',
       'header_color','header_text_color','first_col_color','first_col_text_color'];
@@ -5928,7 +5892,7 @@ class HistoryTableCardEditor extends HTMLElement {
     const padOpen = this._padOpen;
     const checks = [['show_nav_date','chk_show_nav_date'],['show_nav_buttons','chk_nav_btns'],['show_quick_menu','chk_show_quick_menu'],
       ['show_zoom_out','chk_zoom'],['show_reset_button','chk_reset'],['show_date_links','chk_date_links'],
-      ['show_back_button','chk_back'],['enable_sort','chk_enable_sort'],
+      ['enable_sort','chk_enable_sort'],
       ['sticky_header','chk_sticky_header'],
       ['sticky_first_col','chk_sticky_first_col'],
       ['show_color_bullet','chk_color_bullet']];
@@ -6033,8 +5997,7 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
     k !== 'show_color_bullet' &&
     (k !== 'show_nav_date'    || betaNavDate) &&
     (k !== 'show_nav_buttons' || betaNavButtons) &&
-    (k !== 'show_zoom_out'    || betaZoomOut) &&
-    (k !== 'show_back_button' || betaBackButton)
+    (k !== 'show_zoom_out'    || betaZoomOut)
   ).map(([k,tk]) => `
     <ha-formfield label="${escapeHtml(t(tk))}">
       <ha-checkbox data-cfg-bool="${k}"${c[k] !== false ? ' checked' : ''}></ha-checkbox>
