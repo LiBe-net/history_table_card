@@ -1404,6 +1404,8 @@ class HistoryTableCard extends HTMLElement {
     this._energyRetryCount = 0;
     this._energyHistory  = [];   // stack of {start,end} für Zurück-Funktion
     this._pendingNavRange = null;  // set by _applyPeriodToCollection; null = external change expected
+    this._lastAppliedNavRange = null; // keeps internally requested range stable across HA normalization callbacks
+    this._lastAppliedNavUntil = 0;
     this._fetchTimer     = null;
     this._fetchSeq       = 0;     // monotonic request id to ignore stale async fetch responses
     this._initialized    = false;
@@ -1654,18 +1656,29 @@ class HistoryTableCard extends HTMLElement {
         // Callbacks blockieren bis init angewendet (verhindert Flash mit Picker-Default "heute").
         if (initRange && !coll.__smcInitApplied) return;
 
+        const rawCollS = coll.start ?? state.start;
+        const collS = rawCollS ? (rawCollS instanceof Date ? rawCollS : new Date(rawCollS)) : null;
+
         // Always consume pending nav marker. During internal navigation HA can briefly emit
         // compare_start/compare_end as null although compare mode is still active.
         const _pendingNav = this._pendingNavRange;
         this._pendingNavRange = null;
+        const _recentNav = !_pendingNav
+          && this._lastAppliedNavRange
+          && Date.now() < this._lastAppliedNavUntil
+          && collS
+          && collS.getTime() === this._lastAppliedNavRange.start.getTime()
+            ? this._lastAppliedNavRange
+            : null;
+        const _internalNav = _pendingNav || _recentNav;
 
         // coll.start/end = vom Picker gesetzter Wert (immer aktuell).
         // state.start/end = HA-Backend-Antwort (kann normalisiert/null sein solange Fetch läuft).
         // → coll.start/end hat Vorrang, state.start/end als Fallback.
         // Bei interner Navigation bleibt der exakt angeforderte Zeitraum maßgeblich:
         // HA normalisiert mehrtägige Bereiche sonst teils auf exklusive Tagesgrenzen.
-        const rawS = _pendingNav?.start ?? coll.start ?? state.start;
-        const rawE = _pendingNav?.end   ?? coll.end   ?? state.end;
+        const rawS = _internalNav?.start ?? rawCollS;
+        const rawE = _internalNav?.end   ?? coll.end ?? state.end;
         const s = rawS ? (rawS instanceof Date ? rawS : new Date(rawS)) : null;
         const e = rawE ? (rawE instanceof Date ? rawE : new Date(rawE)) : null;
 
@@ -1683,7 +1696,7 @@ class HistoryTableCard extends HTMLElement {
         // Preserve compare range across transient nulls during internal nav refresh.
         let nextCS = cs;
         let nextCE = ce;
-        if (!nextCS && this._energyCompareStart && (_pendingNav || this._loading)) {
+        if (!nextCS && this._energyCompareStart && (_internalNav || this._loading)) {
           nextCS = this._energyCompareStart;
           nextCE = this._energyCompareEnd;
         }
@@ -1698,7 +1711,7 @@ class HistoryTableCard extends HTMLElement {
           || (nextCS ? nextCS.getTime() : null) !== prevCS
           || (nextCE ? nextCE.getTime() : null) !== prevCE;
         if (changed) {
-          if (!_pendingNav) {
+          if (!_internalNav) {
             // Range changed by external picker → discard in-card navigation history
             this._energyHistory = [];
           }
@@ -1748,6 +1761,8 @@ class HistoryTableCard extends HTMLElement {
    */
   _applyPeriodToCollection(coll, start, end) {
     this._pendingNavRange = { start, end };
+    this._lastAppliedNavRange = { start, end };
+    this._lastAppliedNavUntil = Date.now() + 5000;
     coll.start = start;
     coll.end   = end;
     coll.refresh();
@@ -3850,8 +3865,8 @@ ${(() => {
       `;
 
     const cardTitle   = escapeHtml(config.name || config.title || '');
-    const hasVisibleToolbar = showNavBtns || showNavDate || showZoom || showQuickMenu || showBack || showReset;
-    const headerHtml  = (showHeader && (cardTitle || showBack || hasVisibleToolbar)) ? `
+    const hasVisibleToolbar = showNavBtns || showNavDate || showZoom || showQuickMenu || showReset;
+    const headerHtml  = (showHeader && (cardTitle || hasVisibleToolbar)) ? `
       <div class="card-header${cardTitle ? '' : ' no-title'}">
         <div class="card-header-left">
           ${cardTitle ? `<span class="title">${cardTitle}</span>` : ''}
