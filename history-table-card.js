@@ -3796,8 +3796,6 @@ class HistoryTableCard extends HTMLElement {
     const showNavDate   = config.show_nav_date   === true;
     const showQuickMenu = config.show_quick_menu !== false;
     const showReset    = config.show_reset_button !== false && !this._loading && (this._energyHistory.length > 0 || (this._periodOverride || '') !== (config.default_period || ''));
-    const _betaCard    = new Set((config.beta_features || '').split(',').map(s => s.trim()));
-    const betaH        = _betaCard.has('horizontal');
     const dateFrom = escapeHtml(fmtDate.format(start));
     const dateTo   = escapeHtml(fmtDate.format(displayEnd));
 
@@ -5712,8 +5710,7 @@ class HistoryTableCardEditor extends HTMLElement {
 
   _render() {
     const c = { ...DEFAULT_CONFIG, ...this._config };
-    const betaQ = new Set((c.beta_features || '').split(',').map(s => s.trim())).has('quick');
-    const t = (!betaQ && this._tab === 'display') ? 'general' : this._tab;
+    const t = this._tab;
     const isDe = (this._hass?.language || '').toLowerCase().startsWith('de');
     const helpUrl = isDe ? 'https://www.libe.net/energy-table' : 'https://www.libe.net/en/energy-table';
 
@@ -5878,7 +5875,7 @@ class HistoryTableCardEditor extends HTMLElement {
   <div class="tabs">
     <button class="tab-btn${t==='general'?' active':''}" data-tab="general">${this._t('tab_general')}</button>
     <button class="tab-btn${t==='cols'?' active':''}" data-tab="cols">${this._t('tab_cols')}</button>
-    ${betaQ ? `<button class="tab-btn${t==='display'?' active':''}" data-tab="display">${this._t('tab_display')}</button>` : ''}
+    <button class="tab-btn${t==='display'?' active':''}" data-tab="display">${this._t('tab_display')}</button>
   </div>
   ${t === 'general' ? this._tplGeneral(c) : ''}
   ${t === 'cols'    ? this._tplColumnsList(c) : ''}
@@ -5896,12 +5893,6 @@ class HistoryTableCardEditor extends HTMLElement {
     const pl = this._t('period_labels');
     const statOpts = [['mean','stat_mean'],['sum','stat_sum'],['max','stat_max'],['min','stat_min'],['state','stat_state'],['change','stat_change']];
     const msg = this._energyMsg;
-    const _betaG = new Set((c.beta_features || '').split(',').map(s => s.trim()));
-    const betaH          = _betaG.has('horizontal');
-    const betaEL         = _betaG.has('extendedlayout');
-    const betaNavDate    = _betaG.has('navdate');
-    const betaNavButtons = _betaG.has('navbuttons');
-    const betaZoomOut    = _betaG.has('zoomout');
     const padKeys = ['card_padding_top','card_padding_right','card_padding_bottom','card_padding_left',
       'text_align_key','text_align_value','cell_padding','row_height','max_col_width',
       'header_color','header_text_color','first_col_color','first_col_text_color'];
@@ -5934,7 +5925,7 @@ class HistoryTableCardEditor extends HTMLElement {
 <div class="section-title">${t('sec_energy_dash')}</div>
 <div class="row" style="align-items:stretch">
   <button class="add-btn" data-action="load-energy-v" style="margin-top:0;border-style:solid;flex:1">${t('btn_load_energy_v')}</button>
-  <button class="add-btn" data-action="load-energy-h" style="margin-top:0;border-style:solid;flex:1${betaH ? '' : ';display:none'}">${t('btn_load_energy_h')}</button>
+  <button class="add-btn" data-action="load-energy-h" style="margin-top:0;border-style:solid;flex:1">${t('btn_load_energy_h')}</button>
 </div>
 ${msg ? `<div style="padding:8px 0;font-size:12px;white-space:pre-line;word-break:break-word;color:${msg.type==='ok'?'var(--success-color,#4caf50)':msg.type==='warn'?'var(--warning-color,#ff9800)':'var(--error-color,#e53935)'}">${escapeHtml(msg.text)}</div>` : ''}
 <div class="section-title">${t('sec_card')}</div>
@@ -5997,8 +5988,8 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
     </select>
   </div>
 </div>
-<div class="section-title"${betaH ? '' : ' style="display:none"'}>${t('sec_display')}</div>
-<div class="row"${betaH ? '' : ' style="display:none"'}>
+<div class="section-title">${t('sec_display')}</div>
+<div class="row">
   <div class="field-wrap">
     <span class="field-label">${t('lbl_layout')}</span>
     <select class="hs" data-cfg-key="layout">
@@ -6011,16 +6002,13 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
 <div class="section-title">${t('sec_features')}</div>
 <div class="checks">
   ${checks.filter(([k]) =>
-    k !== 'show_color_bullet' &&
-    (k !== 'show_nav_date'    || betaNavDate) &&
-    (k !== 'show_nav_buttons' || betaNavButtons) &&
-    (k !== 'show_zoom_out'    || betaZoomOut)
+    k !== 'show_color_bullet'
   ).map(([k,tk]) => `
     <ha-formfield label="${escapeHtml(t(tk))}">
       <ha-checkbox data-cfg-bool="${k}"${c[k] !== false ? ' checked' : ''}></ha-checkbox>
     </ha-formfield>${k === 'sticky_header' ? `
     <div class="field-label" style="margin:0 0 4px 36px;font-size:11px;opacity:0.65">${escapeHtml(t('chk_sticky_header_hint'))}</div>` : ''}`).join('')}
-  ${betaH && c.layout === 'horizontal' ? `
+  ${c.layout === 'horizontal' ? `
     <ha-formfield label="${escapeHtml(t('chk_color_bullet'))}">  
       <ha-checkbox data-cfg-bool="show_color_bullet"${c.show_color_bullet ? ' checked' : ''}></ha-checkbox>
     </ha-formfield>` : ''}
@@ -6053,11 +6041,11 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
   rows[rows.length - 1].push(sel);
   return rows;
 }, []).map(row => `<div class="row">${row.join('')}</div>`).join('')}
-<div class="section-title" data-action="toggle-pad" style="cursor:pointer;display:${betaEL ? 'flex' : 'none'};align-items:center;justify-content:space-between">
+<div class="section-title" data-action="toggle-pad" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between">
   <span>${t('lbl_card_padding')}</span>
   <span style="line-height:1;transition:transform .2s;transform:rotate(${padOpen?180:0}deg)">▾</span>
 </div>
-<div class="pad-display-row" style="${!betaEL || !padOpen ? 'display:none' : ''}">
+<div class="pad-display-row" style="${!padOpen ? 'display:none' : ''}">
   <div class="pad-compass">
     <div class="pad-top">
       <div class="pad-side-field">
@@ -6183,8 +6171,6 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
 
   _tplDisplay(c) {
     const t = k => this._t(k);
-    const _betaD = new Set((c.beta_features || '').split(',').map(s => s.trim()));
-    const betaH = _betaD.has('horizontal');
     return `
 <div class="qmi-list">
   ${(c.quick_menu_items || []).map((item, qi) => {
@@ -6280,7 +6266,7 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
     <select class="hs" data-qmi-key="${qi}" data-qmi-field="layout">
       <option value=""${!item.layout ? ' selected' : ''}>${t('qmi_no_change')}</option>
       <option value="vertical"${item.layout === 'vertical' ? ' selected' : ''}>${t('qmi_layout_normal')}</option>
-      ${betaH ? `<option value="horizontal"${item.layout === 'horizontal' ? ' selected' : ''}>${t('qmi_layout_transposed')}</option>` : ''}
+      <option value="horizontal"${item.layout === 'horizontal' ? ' selected' : ''}>${t('qmi_layout_transposed')}</option>
     </select>
   </div>
   </div>` : ''}
