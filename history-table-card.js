@@ -143,7 +143,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_text_color: 'Erste-Spalte-Schriftfarbe',
     chk_enable_sort: 'Sortierung aktivieren',
     chk_zoom: 'Zeitraum verdoppeln', chk_nav: 'Nav-Menü', chk_reset: 'Reset-Button',
-    chk_date_links: 'Datum-Links', chk_back: 'Zurück-Button',
+    chk_date_links: 'Datum-Links',
     chk_show_nav_date: 'Datum einblenden', chk_nav_btns: 'Vor/Zurück Tasten', chk_show_quick_menu: 'Quick Menü einblenden',
     btn_add_col: '＋ Spalte hinzufügen',
     col_fallback: 'Spalte',
@@ -255,7 +255,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_text_color: 'First column text color',
     chk_enable_sort: 'Enable sort',
     chk_zoom: 'Double time range', chk_nav: 'Nav menu', chk_reset: 'Reset button',
-    chk_date_links: 'Date links', chk_back: 'Back button',
+    chk_date_links: 'Date links',
     chk_show_nav_date: 'Show date', chk_nav_btns: 'Prev/Next buttons', chk_show_quick_menu: 'Show quick menu',
     btn_add_col: '＋ Add column',
     col_fallback: 'Column',
@@ -341,7 +341,6 @@ const DEFAULT_CONFIG = {
   stat_type:    'mean',     // globaler Fallback-Typ
   days_to_show: 7,
   show_header:  true,
-  show_back_button:  false,
   scroll:       true,
   date_format:  'short',   // 'short' | 'medium' | 'long' | 'full'
   sort_col:     null,       // Standard-Sortierspalte (0-basiert), null = keine
@@ -439,7 +438,7 @@ const CARD_STYLES = `
     max-width: 100%;
   }
 
-  /* Titel + optionaler Zurück-Button als Gruppe – bleibt beim Umbruch linksbündig */
+  /* Titelgruppe – bleibt beim Umbruch linksbündig */
   .card-header-left {
     display: flex;
     align-items: center;
@@ -838,14 +837,6 @@ const CARD_STYLES = `
     margin-left:10px;
   }
 
-  .header-toolbar-btn.back {
-    font-size: 22px;
-    min-width: 30px;
-    height: 30px;
-    border-radius: 4px;
-    margin-right: 4px;
-    flex-shrink: 0;
-  }
   .header-toolbar-btn:hover { opacity: 1; }
   .header-toolbar-btn:hover:not(:disabled) {
     background: rgba(var(--rgb-primary-color, 3,169,244), 0.1);
@@ -1413,6 +1404,8 @@ class HistoryTableCard extends HTMLElement {
     this._energyRetryCount = 0;
     this._energyHistory  = [];   // stack of {start,end} für Zurück-Funktion
     this._pendingNavRange = null;  // set by _applyPeriodToCollection; null = external change expected
+    this._lastAppliedNavRange = null; // keeps internally requested range stable across HA normalization callbacks
+    this._lastAppliedNavUntil = 0;
     this._fetchTimer     = null;
     this._fetchSeq       = 0;     // monotonic request id to ignore stale async fetch responses
     this._initialized    = false;
@@ -1502,6 +1495,8 @@ class HistoryTableCard extends HTMLElement {
       }
       // show_filter – removed feature, drop silently
       delete c.show_filter;
+      // show_back_button – removed toolbar button, drop silently
+      delete c.show_back_button;
       // decimals – removed global precision; now per column/entity only
       delete c.decimals;
     }
@@ -1661,11 +1656,29 @@ class HistoryTableCard extends HTMLElement {
         // Callbacks blockieren bis init angewendet (verhindert Flash mit Picker-Default "heute").
         if (initRange && !coll.__smcInitApplied) return;
 
+        const rawCollS = coll.start ?? state.start;
+        const collS = rawCollS ? (rawCollS instanceof Date ? rawCollS : new Date(rawCollS)) : null;
+
+        // Always consume pending nav marker. During internal navigation HA can briefly emit
+        // compare_start/compare_end as null although compare mode is still active.
+        const _pendingNav = this._pendingNavRange;
+        this._pendingNavRange = null;
+        const _recentNav = !_pendingNav
+          && this._lastAppliedNavRange
+          && Date.now() < this._lastAppliedNavUntil
+          && collS
+          && collS.getTime() === this._lastAppliedNavRange.start.getTime()
+            ? this._lastAppliedNavRange
+            : null;
+        const _internalNav = _pendingNav || _recentNav;
+
         // coll.start/end = vom Picker gesetzter Wert (immer aktuell).
         // state.start/end = HA-Backend-Antwort (kann normalisiert/null sein solange Fetch läuft).
         // → coll.start/end hat Vorrang, state.start/end als Fallback.
-        const rawS = coll.start ?? state.start;
-        const rawE = coll.end   ?? state.end;
+        // Bei interner Navigation bleibt der exakt angeforderte Zeitraum maßgeblich:
+        // HA normalisiert mehrtägige Bereiche sonst teils auf exklusive Tagesgrenzen.
+        const rawS = _internalNav?.start ?? rawCollS;
+        const rawE = _internalNav?.end   ?? coll.end ?? state.end;
         const s = rawS ? (rawS instanceof Date ? rawS : new Date(rawS)) : null;
         const e = rawE ? (rawE instanceof Date ? rawE : new Date(rawE)) : null;
 
@@ -1680,15 +1693,10 @@ class HistoryTableCard extends HTMLElement {
         const cs = rawCS ? (rawCS instanceof Date ? rawCS : new Date(rawCS)) : null;
         const ce = rawCE ? (rawCE instanceof Date ? rawCE : new Date(rawCE)) : null;
 
-        // Always consume pending nav marker. During internal navigation HA can briefly emit
-        // compare_start/compare_end as null although compare mode is still active.
-        const _pendingNav = this._pendingNavRange;
-        this._pendingNavRange = null;
-
         // Preserve compare range across transient nulls during internal nav refresh.
         let nextCS = cs;
         let nextCE = ce;
-        if (!nextCS && this._energyCompareStart && (_pendingNav || this._loading)) {
+        if (!nextCS && this._energyCompareStart && (_internalNav || this._loading)) {
           nextCS = this._energyCompareStart;
           nextCE = this._energyCompareEnd;
         }
@@ -1703,7 +1711,7 @@ class HistoryTableCard extends HTMLElement {
           || (nextCS ? nextCS.getTime() : null) !== prevCS
           || (nextCE ? nextCE.getTime() : null) !== prevCE;
         if (changed) {
-          if (!_pendingNav) {
+          if (!_internalNav) {
             // Range changed by external picker → discard in-card navigation history
             this._energyHistory = [];
           }
@@ -1753,6 +1761,8 @@ class HistoryTableCard extends HTMLElement {
    */
   _applyPeriodToCollection(coll, start, end) {
     this._pendingNavRange = { start, end };
+    this._lastAppliedNavRange = { start, end };
+    this._lastAppliedNavUntil = Date.now() + 5000;
     coll.start = start;
     coll.end   = end;
     coll.refresh();
@@ -3115,26 +3125,6 @@ class HistoryTableCard extends HTMLElement {
   }
 
   /**
-   * Stellt den vorherigen Zeitraum aus dem History-Stack wieder her.
-   */
-  _goBackEnergyPeriod() {
-    if (!this._energyHistory.length) return;
-    const { start, end } = this._energyHistory.pop();
-    const { coll } = this._getEnergyCollectionInfo();
-    if (this._config.collection_key && !coll) return;
-    this._loading = true;
-    this._render();
-    try {
-      if (coll) this._applyPeriodToCollection(coll, start, end);
-    } catch (err) {
-      console.warn('[HistoryTableCard] Energy-Back fehlgeschlagen:', err);
-    }
-    this._energyStart = start;
-    this._energyEnd   = end;
-    this._scheduleDataFetch();
-  }
-
-  /**
    * Verschiebt den gesamten Zeitraum um die aktuelle Spanne vorwärts oder rückwärts.
    * Start und End werden gleichzeitig verschoben; die Spannengröße bleibt erhalten.
    *
@@ -3531,11 +3521,6 @@ class HistoryTableCard extends HTMLElement {
           });
         });
       });
-      const btnBack = this.shadowRoot.querySelector('#btn-back');
-      if (btnBack) btnBack.addEventListener('click', () => {
-        if (this._loading) return;
-        this._goBackEnergyPeriod();
-      });
     }
 
     // Buttons that work in all range modes
@@ -3811,10 +3796,6 @@ class HistoryTableCard extends HTMLElement {
     const showNavDate   = config.show_nav_date   === true;
     const showQuickMenu = config.show_quick_menu !== false;
     const showReset    = config.show_reset_button !== false && !this._loading && (this._energyHistory.length > 0 || (this._periodOverride || '') !== (config.default_period || ''));
-    const _betaCard    = new Set((config.beta_features || '').split(',').map(s => s.trim()));
-    const betaH        = _betaCard.has('horizontal');
-    const betaBack     = _betaCard.has('backbutton');
-    const showBack     = betaBack && hasNav && this._energyHistory.length > 0 && !this._loading && (config.show_back_button ?? false);
     const dateFrom = escapeHtml(fmtDate.format(start));
     const dateTo   = escapeHtml(fmtDate.format(displayEnd));
 
@@ -3835,7 +3816,6 @@ class HistoryTableCard extends HTMLElement {
 
     const headerToolbar = `
       <span class="nav-group nav-left">
-        ${showBack    ? `<ha-icon icon="mdi:arrow-left" class="header-toolbar-btn back" id="btn-back"${dis} title="Zur\u00fcck"></ha-icon>` : ''}
         ${showReset ? `<ha-icon icon="mdi:restore" class="header-toolbar-btn" id="btn-reset"${dis} title="Standard Zeitspanne"></ha-icon>` : ''}
         ${showNavBtns ? `<ha-icon icon="mdi:chevron-left"  class="header-toolbar-btn" id="btn-prev"${dis} title="Vorherige Zeitspanne"></ha-icon>` : ''}
       </span>
@@ -3883,8 +3863,8 @@ ${(() => {
       `;
 
     const cardTitle   = escapeHtml(config.name || config.title || '');
-    const hasVisibleToolbar = showNavBtns || showNavDate || showZoom || showQuickMenu || showBack || showReset;
-    const headerHtml  = (showHeader && (cardTitle || showBack || hasVisibleToolbar)) ? `
+    const hasVisibleToolbar = showNavBtns || showNavDate || showZoom || showQuickMenu || showReset;
+    const headerHtml  = (showHeader && (cardTitle || hasVisibleToolbar)) ? `
       <div class="card-header${cardTitle ? '' : ' no-title'}">
         <div class="card-header-left">
           ${cardTitle ? `<span class="title">${cardTitle}</span>` : ''}
@@ -5730,8 +5710,7 @@ class HistoryTableCardEditor extends HTMLElement {
 
   _render() {
     const c = { ...DEFAULT_CONFIG, ...this._config };
-    const betaQ = new Set((c.beta_features || '').split(',').map(s => s.trim())).has('quick');
-    const t = (!betaQ && this._tab === 'display') ? 'general' : this._tab;
+    const t = this._tab;
     const isDe = (this._hass?.language || '').toLowerCase().startsWith('de');
     const helpUrl = isDe ? 'https://www.libe.net/energy-table' : 'https://www.libe.net/en/energy-table';
 
@@ -5896,7 +5875,7 @@ class HistoryTableCardEditor extends HTMLElement {
   <div class="tabs">
     <button class="tab-btn${t==='general'?' active':''}" data-tab="general">${this._t('tab_general')}</button>
     <button class="tab-btn${t==='cols'?' active':''}" data-tab="cols">${this._t('tab_cols')}</button>
-    ${betaQ ? `<button class="tab-btn${t==='display'?' active':''}" data-tab="display">${this._t('tab_display')}</button>` : ''}
+    <button class="tab-btn${t==='display'?' active':''}" data-tab="display">${this._t('tab_display')}</button>
   </div>
   ${t === 'general' ? this._tplGeneral(c) : ''}
   ${t === 'cols'    ? this._tplColumnsList(c) : ''}
@@ -5914,13 +5893,6 @@ class HistoryTableCardEditor extends HTMLElement {
     const pl = this._t('period_labels');
     const statOpts = [['mean','stat_mean'],['sum','stat_sum'],['max','stat_max'],['min','stat_min'],['state','stat_state'],['change','stat_change']];
     const msg = this._energyMsg;
-    const _betaG = new Set((c.beta_features || '').split(',').map(s => s.trim()));
-    const betaH          = _betaG.has('horizontal');
-    const betaEL         = _betaG.has('extendedlayout');
-    const betaNavDate    = _betaG.has('navdate');
-    const betaNavButtons = _betaG.has('navbuttons');
-    const betaZoomOut    = _betaG.has('zoomout');
-    const betaBackButton = _betaG.has('backbutton');
     const padKeys = ['card_padding_top','card_padding_right','card_padding_bottom','card_padding_left',
       'text_align_key','text_align_value','cell_padding','row_height','max_col_width',
       'header_color','header_text_color','first_col_color','first_col_text_color'];
@@ -5928,7 +5900,7 @@ class HistoryTableCardEditor extends HTMLElement {
     const padOpen = this._padOpen;
     const checks = [['show_nav_date','chk_show_nav_date'],['show_nav_buttons','chk_nav_btns'],['show_quick_menu','chk_show_quick_menu'],
       ['show_zoom_out','chk_zoom'],['show_reset_button','chk_reset'],['show_date_links','chk_date_links'],
-      ['show_back_button','chk_back'],['enable_sort','chk_enable_sort'],
+      ['enable_sort','chk_enable_sort'],
       ['sticky_header','chk_sticky_header'],
       ['sticky_first_col','chk_sticky_first_col'],
       ['show_color_bullet','chk_color_bullet']];
@@ -5953,7 +5925,7 @@ class HistoryTableCardEditor extends HTMLElement {
 <div class="section-title">${t('sec_energy_dash')}</div>
 <div class="row" style="align-items:stretch">
   <button class="add-btn" data-action="load-energy-v" style="margin-top:0;border-style:solid;flex:1">${t('btn_load_energy_v')}</button>
-  <button class="add-btn" data-action="load-energy-h" style="margin-top:0;border-style:solid;flex:1${betaH ? '' : ';display:none'}">${t('btn_load_energy_h')}</button>
+  <button class="add-btn" data-action="load-energy-h" style="margin-top:0;border-style:solid;flex:1">${t('btn_load_energy_h')}</button>
 </div>
 ${msg ? `<div style="padding:8px 0;font-size:12px;white-space:pre-line;word-break:break-word;color:${msg.type==='ok'?'var(--success-color,#4caf50)':msg.type==='warn'?'var(--warning-color,#ff9800)':'var(--error-color,#e53935)'}">${escapeHtml(msg.text)}</div>` : ''}
 <div class="section-title">${t('sec_card')}</div>
@@ -6016,8 +5988,8 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
     </select>
   </div>
 </div>
-<div class="section-title"${betaH ? '' : ' style="display:none"'}>${t('sec_display')}</div>
-<div class="row"${betaH ? '' : ' style="display:none"'}>
+<div class="section-title">${t('sec_display')}</div>
+<div class="row">
   <div class="field-wrap">
     <span class="field-label">${t('lbl_layout')}</span>
     <select class="hs" data-cfg-key="layout">
@@ -6030,17 +6002,13 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
 <div class="section-title">${t('sec_features')}</div>
 <div class="checks">
   ${checks.filter(([k]) =>
-    k !== 'show_color_bullet' &&
-    (k !== 'show_nav_date'    || betaNavDate) &&
-    (k !== 'show_nav_buttons' || betaNavButtons) &&
-    (k !== 'show_zoom_out'    || betaZoomOut) &&
-    (k !== 'show_back_button' || betaBackButton)
+    k !== 'show_color_bullet'
   ).map(([k,tk]) => `
     <ha-formfield label="${escapeHtml(t(tk))}">
       <ha-checkbox data-cfg-bool="${k}"${c[k] !== false ? ' checked' : ''}></ha-checkbox>
     </ha-formfield>${k === 'sticky_header' ? `
     <div class="field-label" style="margin:0 0 4px 36px;font-size:11px;opacity:0.65">${escapeHtml(t('chk_sticky_header_hint'))}</div>` : ''}`).join('')}
-  ${betaH && c.layout === 'horizontal' ? `
+  ${c.layout === 'horizontal' ? `
     <ha-formfield label="${escapeHtml(t('chk_color_bullet'))}">  
       <ha-checkbox data-cfg-bool="show_color_bullet"${c.show_color_bullet ? ' checked' : ''}></ha-checkbox>
     </ha-formfield>` : ''}
@@ -6073,11 +6041,11 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
   rows[rows.length - 1].push(sel);
   return rows;
 }, []).map(row => `<div class="row">${row.join('')}</div>`).join('')}
-<div class="section-title" data-action="toggle-pad" style="cursor:pointer;display:${betaEL ? 'flex' : 'none'};align-items:center;justify-content:space-between">
+<div class="section-title" data-action="toggle-pad" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between">
   <span>${t('lbl_card_padding')}</span>
   <span style="line-height:1;transition:transform .2s;transform:rotate(${padOpen?180:0}deg)">▾</span>
 </div>
-<div class="pad-display-row" style="${!betaEL || !padOpen ? 'display:none' : ''}">
+<div class="pad-display-row" style="${!padOpen ? 'display:none' : ''}">
   <div class="pad-compass">
     <div class="pad-top">
       <div class="pad-side-field">
@@ -6203,8 +6171,6 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
 
   _tplDisplay(c) {
     const t = k => this._t(k);
-    const _betaD = new Set((c.beta_features || '').split(',').map(s => s.trim()));
-    const betaH = _betaD.has('horizontal');
     return `
 <div class="qmi-list">
   ${(c.quick_menu_items || []).map((item, qi) => {
@@ -6300,7 +6266,7 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
     <select class="hs" data-qmi-key="${qi}" data-qmi-field="layout">
       <option value=""${!item.layout ? ' selected' : ''}>${t('qmi_no_change')}</option>
       <option value="vertical"${item.layout === 'vertical' ? ' selected' : ''}>${t('qmi_layout_normal')}</option>
-      ${betaH ? `<option value="horizontal"${item.layout === 'horizontal' ? ' selected' : ''}>${t('qmi_layout_transposed')}</option>` : ''}
+      <option value="horizontal"${item.layout === 'horizontal' ? ' selected' : ''}>${t('qmi_layout_transposed')}</option>
     </select>
   </div>
   </div>` : ''}
