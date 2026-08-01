@@ -1,26 +1,24 @@
 # History Table Card
 
-History Table Card ist eine Custom-Lovelace-Card fur Home Assistant zur Anzeige historischer Werte als Tabelle.
+History Table Card is a custom Lovelace card for Home Assistant that displays historical values and long-term statistics in a flexible table.
 
-Weitere Informationen und Beispiele:
-https://www.libe.net/energy-table
+[![History Table Card demonstration](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.gif)](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.webm)
 
-Repository fur Download und HACS:
-LiBe-net/history_table_card
+[Watch the demonstration video](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.webm)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=LiBe-net&repository=history_table_card&category=plugin)
+For detailed documentation, configuration examples, and an overview of all features, see the [History Table Card article on LiBe.net](https://www.libe.net/en/energy-table).
 
-<br><a href="https://www.buymeacoffee.com/libe.net" rel="nofollow">
-	<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" style="height: 60px !important; width: 217px !important; max-width: 100%;">
-</a><br>
+## Installation
 
-## License
+### HACS
 
-MIT — see [LICENSE](LICENSE)
+[![Open your Home Assistant instance and open this repository in the Home Assistant Community Store](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=LiBe-net&repository=history_table_card&category=plugin)
+
+Alternatively, add `LiBe-net/history_table_card` as a custom dashboard repository in HACS and download **History Table Card**.
 
 ## Build
 
-To generate the HACS-distributed minified file, run:
+To generate the minified file distributed through HACS, run:
 
 ```bash
 npm install
@@ -28,3 +26,15 @@ npm run build
 ```
 
 This writes `history-table-card.min.js` and keeps `history-table-card.js` as the editable source file.
+
+## Support
+
+If you find this project useful, you can support its development:
+
+<a href="https://www.buymeacoffee.com/libe.net" rel="nofollow">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217" height="60">
+</a>
+
+## License
+
+MIT — see [LICENSE](LICENSE).
