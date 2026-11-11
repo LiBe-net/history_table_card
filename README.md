@@ -1,31 +1,26 @@
 # History Table Card
 
-History Table Card is a custom Lovelace card for Home Assistant that displays historical values and long-term statistics in a flexible table.
+Custom Lovelace card for Home Assistant that turns long-term statistics into a flexible, sortable table – with calculated columns, Energy dashboard integration and period navigation.
 
 [![History Table Card demonstration](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.gif)](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.webm)
 
-[Watch the demonstration video](https://www.libe.net/storage/926x515/T3JGMZilpEfMXno0doKnhVBR9OeXdb4tDv540u7Q.webm)
+📖 **Documentation, configuration examples and screenshots:** [English](https://www.libe.net/en/energy-table) · [Deutsch](https://www.libe.net/energy-table)
 
-For detailed documentation, configuration examples, and an overview of all features, see the [History Table Card article on LiBe.net](https://www.libe.net/en/energy-table).
+## Features
+
+- Long-term statistics of any entity as table columns – `change`, `sum` and `state` for meters, `mean`, `min` and `max` for measurements
+- Energy dashboard sources as ready-made columns; the editor templates **⚡ Vertical** and **⚡ Horizontal** build a complete table from your Energy dashboard
+- Calculated columns (`calc`) with variables and Jinja2 templates, e.g. self-consumption, balance or self-sufficiency
+- Time range by number of days, fixed period, custom start date or synced with the Energy date picker (`collection_key`), including compare mode
+- Adaptive aggregation from hour to year, sorting, sticky header and first column, quick menu, previous/next navigation and zoom-out
+- Vertical or transposed (horizontal) layout, colors per column and a full visual editor
 
 ## Installation
 
-### HACS
+History Table Card is part of the HACS default repository: open HACS, search for **History Table Card** and download it.
 
 [![Open your Home Assistant instance and open this repository in the Home Assistant Community Store](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=LiBe-net&repository=history_table_card&category=plugin)
 
-Alternatively, add `LiBe-net/history_table_card` as a custom dashboard repository in HACS and download **History Table Card**.
-
-## Build
-
-To generate the minified file distributed through HACS, run:
-
-```bash
-npm install
-npm run build
-```
-
-This writes `history-table-card.min.js` and keeps `history-table-card.js` as the editable source file.
 
 ## Support
 

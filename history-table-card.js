@@ -14,13 +14,13 @@
  *  ENTITIES-MODUS (v1-kompatibel):
  *    entity: sensor.xxx   ODER   entities: [...]
  *
- * @version 1.0.1
+ * @version 1.2
  * @license MIT
  */
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-const CARD_VERSION = '1.0.1';
+const CARD_VERSION = '1.2';
 const CARD_NAME    = 'History Table Card';
 const CARD_TAG     = 'history-table-card';
 
@@ -1988,9 +1988,9 @@ class HistoryTableCard extends HTMLElement {
           for (const eid of this._resolveEnergyEntityIds(col.energy_key)) ids.add(eid);
         }
         if (col.vars && typeof col.vars === 'object') {
+          // vars entries are either "sensor.x" (default stat_type) or { entity, stat_type }
           for (const v of Object.values(col.vars)) {
-            if (!v || typeof v !== 'object') continue;
-            const id = v.entity;
+            const id = typeof v === 'string' ? v : v?.entity;
             if (typeof id === 'string' && id.length > 0) ids.add(id);
           }
         }
@@ -2008,6 +2008,19 @@ class HistoryTableCard extends HTMLElement {
     return ids;
   }
 
+  /**
+   * stat_type of a calc var: its own stat_type, else the calc column's, else the card's.
+   * If that type does not fit the sensor's state_class, the fitting one is used
+   * (same rule the editor uses to preselect and save a var).
+   */
+  _calcVarStatType(col, varDef) {
+    if (varDef && typeof varDef === 'object' && varDef.stat_type) return varDef.stat_type;
+    const id = typeof varDef === 'string' ? varDef : varDef?.entity;
+    const preferred = col?.stat_type || this._config?.stat_type || 'mean';
+    const stateClass = this._hass?.states?.[id]?.attributes?.state_class;
+    return chooseAllowedStatType(preferred, [stateClass]).statType;
+  }
+
   _collectStatTypes() {
     const defaultType = this._config.stat_type || 'mean';
     if (this._isColumnsMode()) {
@@ -2015,9 +2028,9 @@ class HistoryTableCard extends HTMLElement {
       for (const col of this._config.columns) {
         if (col.stat_type) types.add(col.stat_type);
         if (col.type === COL_ENERGY) types.add(col.stat_type || 'change');
-        if (col.vars) {
+        if (col.vars && typeof col.vars === 'object') {
           for (const v of Object.values(col.vars)) {
-            if (typeof v === 'object' && v.stat_type) types.add(v.stat_type);
+            if (v) types.add(this._calcVarStatType(col, v));
           }
         }
       }
@@ -2239,15 +2252,47 @@ class HistoryTableCard extends HTMLElement {
   // ── Columns-Modus: Tabellendaten aufbauen ─────────────────────────────────
 
   /**
+   * Fasst Statistik-Zeilen (von HA) zu einem Wert je Statistik-Typ zusammen.
+   *
+   *   change                   → Summe der Änderungen (= sum am Ende − sum am Anfang,
+   *                              daher robust bei Zähler-Resets und sum-Korrekturen)
+   *   sum / state / last_reset → letzter Wert im Zeitraum (Zählerstand am Ende)
+   *   min / max                → Minimum / Maximum
+   *   mean                     → arithmetischer Mittelwert (nur nicht-null Zeilen)
+   */
+  _aggregateStatValues(rows, statTypes) {
+    const ordered = [...rows].sort((a, b) => new Date(a.start) - new Date(b.start));
+    const out = {};
+    for (const st of statTypes) {
+      const vals = ordered.map(r => r[st]).filter(v => v !== null && v !== undefined);
+      if (!vals.length) { out[st] = null; continue; }
+      switch (st) {
+        case 'change':
+          out[st] = vals.reduce((a, b) => a + b, 0);
+          break;
+        case 'sum':
+        case 'state':
+        case 'last_reset':
+          out[st] = vals[vals.length - 1];
+          break;
+        case 'min':
+          out[st] = Math.min(...vals);
+          break;
+        case 'max':
+          out[st] = Math.max(...vals);
+          break;
+        case 'mean':
+        default:
+          out[st] = vals.reduce((a, b) => a + b, 0) / vals.length;
+      }
+    }
+    return out;
+  }
+
+  /**
    * Aggregiert Monats-Zeilen (von HA) zu Jahres-Zeilen (client-seitig).
    * HA unterstützt period='year' nicht nativ, daher holen wir Monate und
-   * summieren / mitteln hier.
-   *
-   * Aggregationsregeln:
-   *   change / sum / last_reset  → Summe der Monatswerte
-   *   mean / state               → arithmetischer Mittelwert (nur nicht-null Monate)
-   *   min                        → Minimum aller Monatswerte
-   *   max                        → Maximum aller Monatswerte
+   * fassen sie hier zusammen (Regeln: _aggregateStatValues).
    */
   _aggregateToYear(monthRows, statTypes) {
     // Gruppiere nach Kalenderjahr (UTC-Jahr aus ISO-String)
@@ -2263,30 +2308,7 @@ class HistoryTableCard extends HTMLElement {
       // start = 1. Januar des Jahres, als ISO-String im selben Format wie HA
       const yearStart = new Date(year, 0, 1);
       const iso       = yearStart.toISOString();
-      const out       = { start: iso };
-
-      for (const st of statTypes) {
-        const vals = rows.map(r => r[st]).filter(v => v !== null && v !== undefined);
-        if (!vals.length) { out[st] = null; continue; }
-        switch (st) {
-          case 'change':
-          case 'sum':
-          case 'last_reset':
-            out[st] = vals.reduce((a, b) => a + b, 0);
-            break;
-          case 'min':
-            out[st] = Math.min(...vals);
-            break;
-          case 'max':
-            out[st] = Math.max(...vals);
-            break;
-          case 'mean':
-          case 'state':
-          default:
-            out[st] = vals.reduce((a, b) => a + b, 0) / vals.length;
-        }
-      }
-      result.push(out);
+      result.push({ start: iso, ...this._aggregateStatValues(rows, statTypes) });
     }
     return result;
   }
@@ -2306,34 +2328,12 @@ class HistoryTableCard extends HTMLElement {
   /**
    * Aggregiert ALLE übergebenen Zeilen zu einer einzigen Zeile (Zeitspanne).
    * Der Start der Ergebniszeile entspricht rangeStart.
-   * Aggregationsregeln identisch zu _aggregateToYear.
+   * Aggregationsregeln: _aggregateStatValues.
    */
   _aggregateToTimespan(rows, statTypes, rangeStart) {
     if (!rows.length) return [];
     const iso = (rangeStart instanceof Date ? rangeStart : new Date(rangeStart)).toISOString();
-    const out = { start: iso };
-    for (const st of statTypes) {
-      const vals = rows.map(r => r[st]).filter(v => v !== null && v !== undefined);
-      if (!vals.length) { out[st] = null; continue; }
-      switch (st) {
-        case 'change':
-        case 'sum':
-        case 'last_reset':
-          out[st] = vals.reduce((a, b) => a + b, 0);
-          break;
-        case 'min':
-          out[st] = Math.min(...vals);
-          break;
-        case 'max':
-          out[st] = Math.max(...vals);
-          break;
-        case 'mean':
-        case 'state':
-        default:
-          out[st] = vals.reduce((a, b) => a + b, 0) / vals.length;
-      }
-    }
-    return [out];
+    return [{ start: iso, ...this._aggregateStatValues(rows, statTypes) }];
   }
 
   /**
@@ -2633,9 +2633,7 @@ class HistoryTableCard extends HTMLElement {
           // col.vars: explizite Entity-Referenzen (überschreiben Alias-Werte)
           for (const [variable, varDef] of Object.entries(varDefs)) {
             const vId     = typeof varDef === 'string' ? varDef : varDef.entity;
-            const vType   = (typeof varDef === 'object' && varDef.stat_type)
-              ? varDef.stat_type
-              : defaultStatType;
+            const vType   = this._calcVarStatType(col, varDef);
             const vLookup = getLookup(vId, vType);
             const rawVal  = vLookup.get(iso);
             variables[variable] = (rawVal !== undefined && rawVal !== null)
@@ -2871,7 +2869,7 @@ class HistoryTableCard extends HTMLElement {
           // Explicit col.vars from compare raw stats
           for (const [variable, varDef] of Object.entries(varDefs)) {
             const vId    = typeof varDef === 'string' ? varDef : varDef.entity;
-            const vType  = (typeof varDef === 'object' && varDef.stat_type) ? varDef.stat_type : defaultStatType;
+            const vType  = this._calcVarStatType(col, varDef);
             const vRows  = this._compareRawStats[vId] || [];
             const vRow   = vRows.find(r => this._localDateKey(new Date(r.start)) === cmpKey);
             const rawVal = vRow?.[vType];
@@ -5772,7 +5770,10 @@ class HistoryTableCardEditor extends HTMLElement {
   .add-btn:hover { background: var(--primary-color); color: #fff; }
   .help-link-row { margin-top: 8px; text-align: right; font-size: 12px; }
   .help-link-row a { color: var(--primary-color); text-decoration: underline; }
-  .checks { display: flex; flex-direction: column; gap: 4px 0; padding-left: 8px; }
+  .checks { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; padding-left: 8px; }
+  .checks .check-row { display: contents; }
+  .checks .check-text { font-size: 14px; color: var(--primary-text-color); cursor: pointer; user-select: none; }
+  .checks .check-hint { grid-column: 2; margin: -4px 0 4px; font-size: 11px; opacity: 0.65; }
   .qmi-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
   .qmi-item { border: 1px solid var(--divider-color, #e0e0e0); border-radius: 6px; }
   .qmi-hdr { display: flex; align-items: center; padding: 8px 10px; gap: 8px; cursor: pointer;
@@ -6004,14 +6005,16 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
   ${checks.filter(([k]) =>
     k !== 'show_color_bullet'
   ).map(([k,tk]) => `
-    <ha-formfield label="${escapeHtml(t(tk))}">
+    <div class="check-row">
       <ha-checkbox data-cfg-bool="${k}"${c[k] !== false ? ' checked' : ''}></ha-checkbox>
-    </ha-formfield>${k === 'sticky_header' ? `
-    <div class="field-label" style="margin:0 0 4px 36px;font-size:11px;opacity:0.65">${escapeHtml(t('chk_sticky_header_hint'))}</div>` : ''}`).join('')}
+      <span class="check-text">${escapeHtml(t(tk))}</span>
+    </div>${k === 'sticky_header' ? `
+    <div class="field-label check-hint">${escapeHtml(t('chk_sticky_header_hint'))}</div>` : ''}`).join('')}
   ${c.layout === 'horizontal' ? `
-    <ha-formfield label="${escapeHtml(t('chk_color_bullet'))}">  
+    <div class="check-row">
       <ha-checkbox data-cfg-bool="show_color_bullet"${c.show_color_bullet ? ' checked' : ''}></ha-checkbox>
-    </ha-formfield>` : ''}
+      <span class="check-text">${escapeHtml(t('chk_color_bullet'))}</span>
+    </div>` : ''}
 </div>
 
 <div class="section-title">${t('sec_aggregation')}</div>
@@ -6533,7 +6536,10 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       <div id="vars-list-${i}" style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px">
         ${Object.entries(col.vars || {}).map(([variable, v], vi) => {
           const entityId = typeof v === 'string' ? v : (v?.entity || '');
-          const varStatType = typeof v === 'object' && typeof v?.stat_type === 'string' ? v.stat_type : '';
+          // Plain-string vars use the calc column's / card's stat_type (see _calcVarStatType)
+          const varStatType = typeof v === 'object' && typeof v?.stat_type === 'string'
+            ? v.stat_type
+            : (col.stat_type || this._config.stat_type || 'mean');
           const varStateClass = this._hass?.states?.[entityId]?.attributes?.state_class;
           const varModel = chooseAllowedStatType(varStatType, [varStateClass]);
           const varStatOpts = varModel.opts;
@@ -6751,6 +6757,11 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
     // global checkboxes
     sr.querySelectorAll('ha-checkbox[data-cfg-bool]').forEach(el =>
       el.addEventListener('change', () => this._set(el.dataset.cfgBool, el.checked))
+    );
+    // Label text toggles its checkbox (replaces the removed ha-formfield; click()
+    // is forwarded to the inner input by both the old mwc and the new wa checkbox)
+    sr.querySelectorAll('.checks .check-text').forEach(txt =>
+      txt.addEventListener('click', () => txt.closest('.check-row')?.querySelector('ha-checkbox')?.click())
     );
 
     // per-column boolean checkboxes (e.g. hidden, hide_unit)
@@ -7532,7 +7543,7 @@ window.customCards.push({
   name:             CARD_NAME,
   description:      'Historische Statistikdaten als flexible Mehrspalten-Tabelle mit Jinja2-Support und energy-date-selection.',
   preview:          true,
-  documentationURL: 'https://github.com/LiBe-net/history-table-card',
+  documentationURL: 'https://github.com/LiBe-net/history_table_card',
 });
 
 console.info(

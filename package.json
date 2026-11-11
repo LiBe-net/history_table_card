@@ -1,11 +1,11 @@
 {
   "name": "history-table-card",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "private": true,
   "description": "History Table Card for Home Assistant",
   "license": "MIT",
   "scripts": {
-    "build": "C:\\Progra~1\\nodejs\\node.exe build-minify.mjs"
+    "build": "node build-minify.mjs"
   },
   "devDependencies": {
     "terser": "^5.31.6"
