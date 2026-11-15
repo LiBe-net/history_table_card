@@ -14,19 +14,21 @@
  *  ENTITIES-MODUS (v1-kompatibel):
  *    entity: sensor.xxx   ODER   entities: [...]
  *
- * @version 1.2
+ * @version 1.3
  * @license MIT
  */
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
-const CARD_VERSION = '1.2';
+const CARD_VERSION = '1.3';
 const CARD_NAME    = 'History Table Card';
 const CARD_TAG     = 'history-table-card';
 
 const COL_DATE   = 'date';
 const COL_ENTITY = 'entity';
 const COL_CALC   = 'calc';
+// Zusammenfassung am Tabellenende: Typ → Kennzeichen (pro Spalte in col.summary aktivierbar)
+const SUMMARY_TYPES = [['sum', 'Σ'], ['max', '↑'], ['min', '↓'], ['avg', 'Ø']];
 const COL_ENERGY = 'energy';   // Summe aus Energy-Dashboard-Quellen (Wh → kWh, automatisch)
 
 // Gültige Werte für den recorder/statistics_during_period WebSocket-Aufruf
@@ -142,6 +144,14 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_color: 'Erste-Spalte-Hintergrundfarbe',
     lbl_first_col_text_color: 'Erste-Spalte-Schriftfarbe',
     chk_enable_sort: 'Sortierung aktivieren',
+    chk_enable_filter: 'Filter aktivieren',
+    lbl_summary: 'Am Tabellenende anzeigen', sum_sum: 'Summe', sum_max: 'Maximum', sum_min: 'Minimum', sum_avg: 'Durchschnitt',
+    sec_filter: 'Filter', btn_add_filter: '＋ Filterregel hinzufügen',
+    flt_where: 'Wenn', flt_and: 'UND', flt_or: 'ODER', flt_value: 'Wert', flt_op_contains: 'enthält', flt_op_not_contains: 'enthält nicht', flt_src_value: 'Wert:', flt_src_col: 'Spalte',
+    flt_ref_row: 'Spalte (gleiche Zeile)', flt_ref_latest: 'Spalte (neueste Zeile)', flt_ref_last_complete: 'Spalte (letzter abgeschlossener Zeitraum)', flt_ref_first: 'Spalte (älteste Zeile)', flt_ref_sum: 'Σ Summe der Spalte',
+    flt_ref_max: '↑ Maximum der Spalte', flt_ref_min: '↓ Minimum der Spalte', flt_ref_avg: 'Ø Durchschnitt der Spalte', flt_first_short: 'älteste Zeile', flt_latest_short: 'neueste Zeile', flt_last_complete_short: 'letzter abgeschlossener Zeitraum',
+    flt_hint: 'UND bindet stärker als ODER: A UND B ODER C = (A und B) oder C. Verglichen wird der angezeigte Wert; Zahlen numerisch, sonst als Text. Statt eines festen Werts lässt sich eine Spalte wählen: gleiche Zeile, neueste/älteste Zeile, letzter abgeschlossener Zeitraum (z. B. gestern statt des laufenden Tages) oder Σ/↑/↓/Ø – bezogen auf alle Einträge des Zeitraums vor dem Filter, unabhängig von der Sortierung.',
+    flt_info: 'Filter: {rules} · {shown} von {total} Einträgen', flt_empty: 'Filter: {rules} · keine Einträge gefunden',
     chk_zoom: 'Zeitraum verdoppeln', chk_nav: 'Nav-Menü', chk_reset: 'Reset-Button',
     chk_date_links: 'Datum-Links',
     chk_show_nav_date: 'Datum einblenden', chk_nav_btns: 'Vor/Zurück Tasten', chk_show_quick_menu: 'Quick Menü einblenden',
@@ -182,6 +192,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_qmi_layout: 'Ansichtsmodus',
     qmi_range_energy: 'Energy-Periode', qmi_range_days: 'Anzahl Tage', qmi_range_custom: 'Eigenes Startdatum',
     qmi_no_change: '— (nicht ändern)', qmi_on: 'An', qmi_off: 'Aus',
+    lbl_qmi_filter: 'Filter', qmi_filter_set: 'Filter setzen', qmi_filter_clear: 'Filter aufheben',
     qmi_layout_normal: 'Vertikale Zeitachse', qmi_layout_transposed: 'Horizontale Zeitachse',
     qmi_period_default: 'Standard (zurücksetzen)',
     qmi_energy_labels: { today: 'Heute', yesterday: 'Gestern', this_week: 'Diese Woche', this_month: 'Dieser Monat', this_quarter: 'Dieses Quartal', this_year: 'Dieses Jahr', 'now-7d': 'Letzte 7 Tage', 'now-30d': 'Letzte 30 Tage', 'now-365d': 'Letzte 365 Tage', 'now-12m': 'Letzte 12 Monate' },
@@ -254,6 +265,14 @@ const EDITOR_TRANSLATIONS = {
     lbl_first_col_color: 'First column background color',
     lbl_first_col_text_color: 'First column text color',
     chk_enable_sort: 'Enable sort',
+    chk_enable_filter: 'Enable filter',
+    lbl_summary: 'Show at end of table', sum_sum: 'Sum', sum_max: 'Maximum', sum_min: 'Minimum', sum_avg: 'Average',
+    sec_filter: 'Filter', btn_add_filter: '＋ Add filter rule',
+    flt_where: 'If', flt_and: 'AND', flt_or: 'OR', flt_value: 'Value', flt_op_contains: 'contains', flt_op_not_contains: 'does not contain', flt_src_value: 'Value:', flt_src_col: 'Column',
+    flt_ref_row: 'Column (same row)', flt_ref_latest: 'Column (newest row)', flt_ref_last_complete: 'Column (last completed period)', flt_ref_first: 'Column (oldest row)', flt_ref_sum: 'Σ Sum of column',
+    flt_ref_max: '↑ Maximum of column', flt_ref_min: '↓ Minimum of column', flt_ref_avg: 'Ø Average of column', flt_first_short: 'oldest row', flt_latest_short: 'newest row', flt_last_complete_short: 'last completed period',
+    flt_hint: 'AND binds tighter than OR: A AND B OR C = (A and B) or C. The displayed value is compared; numbers numerically, otherwise as text. Instead of a fixed value, a column can be selected: same row, newest/oldest row, last completed period (e.g. yesterday instead of the running day) or Σ/↑/↓/Ø – based on all entries of the period before filtering, independent of sorting.',
+    flt_info: 'Filter: {rules} · {shown} of {total} entries', flt_empty: 'Filter: {rules} · no matching entries',
     chk_zoom: 'Double time range', chk_nav: 'Nav menu', chk_reset: 'Reset button',
     chk_date_links: 'Date links',
     chk_show_nav_date: 'Show date', chk_nav_btns: 'Prev/Next buttons', chk_show_quick_menu: 'Show quick menu',
@@ -294,6 +313,7 @@ const EDITOR_TRANSLATIONS = {
     lbl_qmi_layout: 'View mode',
     qmi_range_energy: 'Energy period', qmi_range_days: 'Days to show', qmi_range_custom: 'Custom start date',
     qmi_no_change: '— (no change)', qmi_on: 'On', qmi_off: 'Off',
+    lbl_qmi_filter: 'Filter', qmi_filter_set: 'Set filter', qmi_filter_clear: 'Clear filter',
     qmi_layout_normal: 'Vertical timeline', qmi_layout_transposed: 'Horizontal timeline',
     qmi_period_default: 'Default (reset)',
     qmi_energy_labels: { today: 'Today', yesterday: 'Yesterday', this_week: 'This week', this_month: 'This month', this_quarter: 'This quarter', this_year: 'This year', 'now-7d': 'Last 7 days', 'now-30d': 'Last 30 days', 'now-365d': 'Last 365 days', 'now-12m': 'Last 12 months' },
@@ -376,7 +396,8 @@ const DEFAULT_CONFIG = {
   card_padding_right:  null, // Card-Innenabstand rechts
   card_padding_bottom: null, // Card-Innenabstand unten
   card_padding_left:   null, // Card-Innenabstand links
-  quick_menu_items:    [],   // Schnellmenü-Einträge: [{ title?, energy_period?, period?, sort_col? }]
+  quick_menu_items:    [],   // Schnellmenü-Einträge: [{ title?, energy_period?, period?, sort_col?, filter? }]
+  enable_filter:       false, // Zeilenfilter aktiv; Regeln in filter: [{ join?, column, op, value | value_column + value_ref? }]
   show_nav_date:       false, // Datum in der Toolbar anzeigen
   show_quick_menu:     true,  // Schnellmenü-Einträge im Toolbar-Menü anzeigen
 };
@@ -633,6 +654,24 @@ const CARD_STYLES = `
   .unavailable {
     color: var(--secondary-text-color);
     font-style: italic;
+  }
+  .summary-item { white-space: nowrap; }
+  .summary-sym { opacity: 0.7; }
+  /* Zusammenfassung: normaler Kartenhintergrund statt Spalten-/Zebra-Farben, kräftige Trennlinie */
+  tbody tr.summary-row { background: transparent !important; }
+  tbody tr.summary-row td,
+  tbody td.summary-cell,
+  thead th.summary-cell {
+    background-image: none !important;
+    background-color: var(--ha-card-background, var(--card-background-color, white)) !important;
+    box-shadow: none !important;
+  }
+  tbody tr.summary-row td { border-top: 2px solid var(--divider-color, rgba(0,0,0,0.12)); }
+  tbody td.summary-cell, thead th.summary-cell { border-left: 2px solid var(--divider-color, rgba(0,0,0,0.12)); }
+  .filter-info {
+    font-size: 12px;
+    opacity: 0.7;
+    padding: 6px 16px;
   }
   .state-message {
     padding: 16px;
@@ -1521,6 +1560,9 @@ class HistoryTableCard extends HTMLElement {
     this._compareOffset        = 0;
     // default_period = fixer Perioden-Override beim Laden (wie Dropdown "periode fixiert")
     this._periodOverride       = this._config.default_period || '';
+    // Filter aus einem Schnellmenü-Eintrag (undefined = Filter aus der Konfiguration)
+    this._filterOverride       = undefined;
+    this._prefilteredCount     = 0;   // Zeilen ohne Calc-Werte im letzten Aufbau (Vorfilter)
     this._stickyHeader    = this._config.sticky_header    !== false;
     this._stickyFirstCol  = this._config.sticky_first_col !== false;
     this._showColorBullet = !!this._config.show_color_bullet;
@@ -2558,9 +2600,57 @@ class HistoryTableCard extends HTMLElement {
     // Calc-Spalten den Wert verwenden können – wie Entity-Alias, aber für Berechnungen).
     const calcAliasVals = rows.map(() => ({}));
 
+    // Serverseitig gerenderte Werte (render_template) einer Calc-Spalte sofort abwarten und als
+    // Variable bereitstellen: abhängige Calc-Spalten werden direkt danach ausgewertet und brauchen
+    // den Zahlenwert schon jetzt. Zellen setzt weiterhin die gemeinsame Auswertung am Ende.
+    const settleRenderJobs = async (jobs, ci, aliasVals, variable) => {
+      const own = jobs.filter(j => j.colIdx === ci);
+      if (!own.length) return;
+      const results = await Promise.allSettled(own.map(j => j.promise));
+      own.forEach((j, i) => {
+        if (results[i].status !== 'fulfilled') return;
+        const m = String(results[i].value).match(/-?\d+(?:\.\d+)?/);
+        if (m) aliasVals[j.rowIdx][variable] = parseFloat(m[0]);
+      });
+    };
+
+    // ── Vorfilter ──────────────────────────────────────────────────────────────
+    // Zeilen, die schon an Filterregeln auf Nicht-Calc-Spalten (Datum, Entity, Energy) scheitern,
+    // brauchen keine Calc-Berechnung – das spart vor allem serverseitige render_template-Aufrufe.
+    // Ausgeblendet werden sie wie bisher erst beim Rendern (_applyFilter), mit identischem Ergebnis.
+    // Wird erst bei der ersten Calc-Spalte ausgewertet: alle Nicht-Calc-Zellen sind dann gefüllt.
+    let prefiltered = null;
+    const computePrefilter = () => {
+      const excluded = new Set();
+      const rules = this._activeFilterRules(columns);
+      if (rules.length) {
+        const groups = [[]];
+        rules.forEach((r, i) => {
+          if (i > 0 && r.join === 'or') groups.push([]);
+          groups[groups.length - 1].push(r);
+        });
+        const isCalc = idx => colTypes[idx] === COL_CALC;
+        const hasValCol = r => r.value_column !== undefined && r.value_column !== null && r.value_column !== '';
+        const decidable = r => !isCalc(Number(r.column)) && (!hasValCol(r) || !isCalc(Number(r.value_column)));
+        // Bezug auf erste Zeile / Σ↑↓Ø einer Calc-Spalte braucht deren Werte in allen Zeilen → kein Vorfilter
+        const needsAllCalc = rules.some(r => hasValCol(r) && (r.value_ref || 'row') !== 'row' && isCalc(Number(r.value_column)));
+        // Nur wenn jede ODER-Gruppe eine vorab prüfbare Regel hat, kann eine Zeile sicher ausscheiden
+        if (!needsAllCalc && groups.every(g => g.some(decidable))) {
+          const ctx = this._filterContext(rows);
+          rows.forEach((row, ri) => {
+            if (groups.every(g => g.some(r => decidable(r) && !this._filterRuleMatches(row, r, columns, ctx)))) excluded.add(ri);
+          });
+        }
+      }
+      this._prefilteredCount = excluded.size;
+      return excluded;
+    };
+    this._prefilteredCount = 0;
+
     for (const ci of orderedColumnIndices) {
       const col = columns[ci];
       const colType = colTypes[ci];
+      if (colType === COL_CALC && prefiltered === null) prefiltered = computePrefilter();
 
       if (colType === COL_DATE) {
         // ── Datumsspalte ────────────────────────────────────────────────
@@ -2615,6 +2705,8 @@ class HistoryTableCard extends HTMLElement {
         const colUnit  = col.hide_unit ? '' : (col.unit || '');
 
         for (let ri = 0; ri < rows.length; ri++) {
+          // Vom Filter ohnehin ausgeblendet → nicht berechnen
+          if (prefiltered.has(ri)) { rows[ri].cells[ci] = ''; continue; }
           // Zirkuläre Alias-Abhängigkeit → Warnung statt Berechnung
           if (cycleCalcColIndices.has(ci)) {
             rows[ri].cells[ci] = '<span class="unavailable" title="Zirkuläre Alias-Abhängigkeit">⚠ loop</span>';
@@ -2678,6 +2770,7 @@ class HistoryTableCard extends HTMLElement {
             });
           }
         }
+        if (col.variable) await settleRenderJobs(renderJobs, ci, calcAliasVals, col.variable);
       } else if (colType === COL_ENERGY) {
         // ── Energie-Dashboard-Spalte ────────────────────────────────────
         const energyKey = col.energy_key;
@@ -2863,6 +2956,7 @@ class HistoryTableCard extends HTMLElement {
         const colUnit  = col.hide_unit ? '' : (col.unit || '');
 
         for (let ri = 0; ri < rows.length; ri++) {
+          if (prefiltered && prefiltered.has(ri)) continue;   // vom Filter ausgeblendet
           const cmpKey = this._localDateKey(rows[ri].compareDate || new Date(0));
           const variables = { ...compareAliasVals[ri], ...compareCalcAliasVals[ri] };
 
@@ -2902,6 +2996,7 @@ class HistoryTableCard extends HTMLElement {
             }
           }
         }
+        if (col.variable) await settleRenderJobs(compareRenderJobs, ci, compareCalcAliasVals, col.variable);
       }
 
       if (compareRenderJobs.length > 0) {
@@ -3225,8 +3320,16 @@ class HistoryTableCard extends HTMLElement {
    * Setzt die Collection auf den konfigurierten initialen Zeitraum zurück.
    */
   _resetToInitialRange() {
+    // Reset hebt auch einen per Schnellmenü gesetzten Filter wieder auf
+    const filterChanged = this._filterOverride !== undefined;
+    this._filterOverride = undefined;
+    if (filterChanged && this._prefilteredCount > 0) this._scheduleDataFetch();
+
     const { coll, connKey } = this._getEnergyCollectionInfo();
-    if (this._config.collection_key && !coll) return;
+    if (this._config.collection_key && !coll) {
+      if (filterChanged) this._render();
+      return;
+    }
 
     const defaultPeriod = this._config.default_period || '';
     const periodChanged = (this._periodOverride || '') !== defaultPeriod;
@@ -3237,7 +3340,10 @@ class HistoryTableCard extends HTMLElement {
     const initRange = this._energyHistory.length > 0
       ? this._energyHistory[0]
       : this._computeResetRange();
-    if (!initRange && !periodChanged) return;
+    if (!initRange && !periodChanged) {
+      if (filterChanged) this._render();
+      return;
+    }
 
     // Reset: History leeren (kein Zurück mehr möglich) und Zustand zurücksetzen
     this._energyHistory = [];
@@ -3428,6 +3534,249 @@ class HistoryTableCard extends HTMLElement {
   _compareSortValues(a, b) {
     if (typeof a === 'number' && typeof b === 'number') return a - b;
     return String(a).localeCompare(String(b), undefined, { numeric: true });
+  }
+
+  /** Zeilen in der Reihenfolge der normalen Ansicht (Sortierspalte/-richtung), nicht-destruktiv. */
+  _sortRowsForDisplay(rows, columns) {
+    const sorted = [...rows];
+    if (this._sortCol !== null && this._sortCol < columns.length) {
+      const col = columns[this._sortCol];
+      const isDateCol = col.type === COL_DATE
+        || (!col.type && !col.entity && !col.template && !col.calc);
+      sorted.sort((a, b) => {
+        if (isDateCol) {
+          return this._sortDir === 'asc' ? a.start - b.start : b.start - a.start;
+        }
+        const av = this._cellSortValue(a.cells[this._sortCol]);
+        const bv = this._cellSortValue(b.cells[this._sortCol]);
+        return this._sortDir === 'asc'
+          ? this._compareSortValues(av, bv)
+          : this._compareSortValues(bv, av);
+      });
+    }
+    return sorted;
+  }
+
+  // ── Zeilenfilter ───────────────────────────────────────────────────────────
+
+  /** Aktive Filterregeln: Schnellmenü-Filter vor Konfiguration, nur mit enable_filter. */
+  _activeFilterRules(columns) {
+    if (!this._config.enable_filter) return [];
+    const rules = this._filterOverride !== undefined ? this._filterOverride : this._config.filter;
+    if (!Array.isArray(rules)) return [];
+    return rules.filter(r => {
+      if (!r || typeof r !== 'object') return false;
+      const validCol = v => Number.isInteger(v) && v >= 0 && v < columns.length;
+      if (!validCol(Number(r.column))) return false;
+      if (r.value_column !== undefined && r.value_column !== null && r.value_column !== '') {
+        return validCol(Number(r.value_column));
+      }
+      return r.value !== undefined && r.value !== null && String(r.value).trim() !== '';
+    });
+  }
+
+  /**
+   * Filtert Tabellenzeilen. Eine Regel mit join "or" beginnt eine neue Gruppe,
+   * UND bindet also stärker als ODER: A UND B ODER C = (A und B) oder C.
+   */
+  _applyFilter(rows, columns) {
+    const rules = this._activeFilterRules(columns);
+    if (!rules.length) return rows;
+    const groups = [[]];
+    rules.forEach((r, i) => {
+      if (i > 0 && r.join === 'or') groups.push([]);
+      groups[groups.length - 1].push(r);
+    });
+    const ctx = this._filterContext(rows);
+    return rows.filter(row => groups.some(g => g.every(r => this._filterRuleMatches(row, r, columns, ctx))));
+  }
+
+  /**
+   * Bezugswerte für Regeln mit value_ref – immer über alle Einträge des Zeitraums vor dem Filter
+   * (sonst wäre der Filter zirkulär) und unabhängig von der Sortierung:
+   *   first = älteste Zeile, latest = neueste Zeile,
+   *   last_complete = neueste Zeile, deren Zeitraum schon vorbei ist (z. B. gestern statt heute;
+   *                   ohne abgeschlossene Zeile ersatzweise die neueste), sum/max/min/avg je Spalte.
+   */
+  _filterContext(rows) {
+    const ordered  = [...rows].sort((a, b) => a.start - b.start);
+    const now      = Date.now();
+    const complete = ordered.filter(r => this._rowPeriodEnd(r) <= now);
+    const cache = new Map();
+    return {
+      ref: type => type === 'first' ? (ordered[0] || null)
+        : type === 'latest' ? (ordered[ordered.length - 1] || null)
+        : type === 'last_complete' ? (complete[complete.length - 1] || ordered[ordered.length - 1] || null)
+        : null,
+      agg: (ci, type) => {
+        const key = `${ci}:${type}`;
+        if (!cache.has(key)) {
+          const nums = ordered.map(r => this._cellSortValue(r.cells[ci])).filter(v => typeof v === 'number' && isFinite(v));
+          const total = nums.reduce((a, b) => a + b, 0);
+          cache.set(key, !nums.length ? null
+            : type === 'sum' ? total
+            : type === 'max' ? Math.max(...nums)
+            : type === 'min' ? Math.min(...nums)
+            : total / nums.length);
+        }
+        return cache.get(key);
+      },
+    };
+  }
+
+  /**
+   * Vergleicht den angezeigten Zellwert (wie die Sortierung) mit dem Regelwert:
+   * fester Wert (value) oder Wert einer anderen Spalte derselben Zeile (value_column).
+   */
+  /** Ende des Zeitraums einer Tabellenzeile (Beginn + aktuelle Periode). */
+  _rowPeriodEnd(row) {
+    const period = this._effectivePeriod || this._config.period || 'day';
+    const d = new Date(row.start);
+    switch (period) {
+      case '5minute':  return d.getTime() + 5 * 60000;
+      case 'hour':     return d.getTime() + 3600000;
+      case 'week':     d.setDate(d.getDate() + 7);         return d.getTime();
+      case 'month':    d.setMonth(d.getMonth() + 1);       return d.getTime();
+      case 'year':     d.setFullYear(d.getFullYear() + 1); return d.getTime();
+      case 'timespan': return this._getDateRange().end.getTime();
+      default:         d.setDate(d.getDate() + 1);         return d.getTime();
+    }
+  }
+
+  _filterRuleMatches(row, rule, columns, ctx = null) {
+    const isDateCol = idx => {
+      const col = columns[idx] || {};
+      return col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc);
+    };
+    const textOf = html => String(html ?? '').replace(/<[^>]*>/g, '').trim().toLowerCase();
+    const ci   = Number(rule.column);
+    const cell = row.cells[ci] ?? '';
+    const useCol = rule.value_column !== undefined && rule.value_column !== null && rule.value_column !== '';
+    const vi   = useCol ? Number(rule.value_column) : null;
+    const ref  = useCol ? (rule.value_ref || 'row') : null;
+    let want;
+    if (!useCol)              want = String(rule.value);
+    else if (ref === 'row')   want = row.cells[vi] ?? '';
+    else if (ref === 'first' || ref === 'latest' || ref === 'last_complete') want = ctx?.ref(ref)?.cells[vi] ?? '';
+    else {
+      // Σ / ↑ / ↓ / Ø der Spalte; ohne Zahlenwerte trifft die Regel nicht zu
+      const agg = ctx && !isDateCol(vi) ? ctx.agg(vi, ref) : null;
+      if (agg === null) return false;
+      want = String(agg);
+    }
+    const cellText = textOf(cell);
+    const wantText = textOf(want);
+    const cellNum  = isDateCol(ci) ? null : this._cellSortValue(cell);
+    const wantNum  = useCol && isDateCol(vi) ? null : this._cellSortValue(String(want));
+    const numeric  = typeof cellNum === 'number' && typeof wantNum === 'number';
+    switch (rule.op || '=') {
+      case '=':        return numeric ? cellNum === wantNum : cellText === wantText;
+      case '!=':       return numeric ? cellNum !== wantNum : cellText !== wantText;
+      case '>':        return numeric && cellNum >  wantNum;
+      case '>=':       return numeric && cellNum >= wantNum;
+      case '<':        return numeric && cellNum <  wantNum;
+      case '<=':       return numeric && cellNum <= wantNum;
+      case 'contains':     return cellText.includes(wantText);
+      case 'not_contains': return !cellText.includes(wantText);
+      default:             return true;
+    }
+  }
+
+  /** Spaltenbeschriftung wie im Tabellenkopf. */
+  _filterColumnLabel(col) {
+    if (!col) return '?';
+    const isDate = col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc);
+    return col.name
+      || (col.type === COL_ENERGY && col.energy_key ? this._resolveEnergyLabel(col.energy_key) : null)
+      || (col.entity ? this._getFriendlyName(col.entity, col) : null)
+      || (isDate ? this._tr('type_date') : null)
+      || col.variable || col.entity || '?';
+  }
+
+  /** Aktive Regeln als Klartext, z. B. „PV > 10 UND Netzbezug ≤ Einspeisung“. */
+  _filterDescription(columns) {
+    const ops = { '=': '=', '!=': '≠', '>': '>', '>=': '≥', '<': '<', '<=': '≤',
+      contains: this._tr('flt_op_contains'), not_contains: this._tr('flt_op_not_contains') };
+    return this._activeFilterRules(columns).map((r, i) => {
+      const useCol = r.value_column !== undefined && r.value_column !== null && r.value_column !== '';
+      const ref    = r.value_ref || 'row';
+      const colLbl = useCol ? this._filterColumnLabel(columns[Number(r.value_column)]) : '';
+      const sym    = Object.fromEntries(SUMMARY_TYPES)[ref];
+      const value  = !useCol ? `${r.value}`
+        : ref === 'first' || ref === 'latest' || ref === 'last_complete' ? `${colLbl} (${this._tr(`flt_${ref}_short`)})`
+        : sym ? `${sym} ${colLbl}`
+        : colLbl;
+      const join   = i === 0 ? '' : `${this._tr(r.join === 'or' ? 'flt_or' : 'flt_and')} `;
+      return `${join}${this._filterColumnLabel(columns[Number(r.column)])} ${ops[r.op || '='] || r.op} ${value}`;
+    }).join(' ');
+  }
+
+  // ── Zusammenfassung (Σ / max / min / avg) ───────────────────────────────────
+
+  /** true, wenn mindestens eine sichtbare Wertspalte eine Zusammenfassung aktiviert hat. */
+  _hasSummary(columns) {
+    return columns.some(col => {
+      const isDate = col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc);
+      return !col.hidden && !isDate && Array.isArray(col.summary)
+        && col.summary.some(t => SUMMARY_TYPES.some(([k]) => k === t));
+    });
+  }
+
+  /**
+   * Zelle der Zusammenfassungszeile: je aktiviertem Typ „Σ 92 kWh“, „↑ 15 kWh“ … untereinander.
+   * Im Vergleichsmodus (Energy-Datepicker) steht wie in den übrigen Zellen „(Vergleichswert)“ davor.
+   */
+  _summaryCellContent(col, cells, cmpCells = null) {
+    if (!Array.isArray(col.summary)) return '';
+    return SUMMARY_TYPES
+      .filter(([type]) => col.summary.includes(type))
+      .map(([type, sym]) => {
+        const val = this._summaryCell(cells, type);
+        if (!val) return '';
+        const cmp = cmpCells ? this._summaryCell(cmpCells, type) : '';
+        const cmpHtml = cmp ? `<span class="compare-val">(${cmp})</span>` : '';
+        return `<span class="summary-item" title="${escapeHtml(this._tr('sum_' + type))}"><span class="summary-sym">${sym}</span>\u00a0${cmpHtml}${val}</span>`;
+      })
+      .filter(Boolean)
+      .join('<br>');
+  }
+
+  /**
+   * Σ / max / min / avg über die angezeigten Zellen einer Spalte. Formatiert wie die Zellen selbst:
+   * Text davor/danach (Einheit, %, …) und Nachkommastellen kommen von der ersten Zelle mit Zahl.
+   */
+  _summaryCell(cells, type) {
+    const nums = cells.map(c => this._cellSortValue(c)).filter(v => typeof v === 'number' && isFinite(v));
+    if (!nums.length) return '';
+    const total = nums.reduce((a, b) => a + b, 0);
+    const value = type === 'sum' ? total
+      : type === 'max' ? Math.max(...nums)
+      : type === 'min' ? Math.min(...nums)
+      : total / nums.length;
+    const decode = t => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    const tpl = cells.map(c => decode(String(c ?? '').replace(/<[^>]*>/g, '').trim())).find(t => /\d/.test(t)) || '';
+    const m = tpl.match(/-?\d+(?:[.,](\d+))?/);
+    const locale = this._hass?.language?.replace('_', '-') || 'de-DE';
+    const num = fmtNum(value, m && m[1] ? m[1].length : 0, locale);
+    return escapeHtml(m ? tpl.replace(m[0], num) : num);
+  }
+
+  /**
+   * Nach einem Filterwechsel ohne Neuladen (Schnellmenü, Reset): Wurden beim letzten Aufbau
+   * Zeilen vorgefiltert, fehlen dort die Calc-Werte → Daten neu aufbauen, sonst nur neu zeichnen.
+   */
+  _refreshAfterFilterChange() {
+    if (this._prefilteredCount > 0) this._scheduleDataFetch();
+    else this._render();
+  }
+
+  /** Hinweis unter der Tabelle, solange ein Filter aktiv ist: Regeln und Anzahl der Einträge. */
+  _filterInfoHtml(shown, total, columns) {
+    const rules = this._filterDescription(columns);
+    if (!rules) return '';
+    const msg = (shown === 0 ? this._tr('flt_empty') : this._tr('flt_info'))
+      .replace('{rules}', rules).replace('{shown}', shown).replace('{total}', total);
+    return `<div class="filter-info">${escapeHtml(msg)}</div>`;
   }
 
   _isInEditMode() {
@@ -3684,6 +4033,11 @@ class HistoryTableCard extends HTMLElement {
             this._transposed = (item.layout === 'horizontal');
             this._render();
           }
+          // filter: [...] setzt einen Filter, filter: [] hebt ihn auf, ohne filter bleibt er unverändert
+          if ('filter' in item && this._config.enable_filter) {
+            this._filterOverride = Array.isArray(item.filter) ? item.filter : [];
+            this._refreshAfterFilterChange();
+          }
         });
       });
 
@@ -3793,7 +4147,7 @@ class HistoryTableCard extends HTMLElement {
     const showNavBtns   = config.show_nav_buttons  === true;
     const showNavDate   = config.show_nav_date   === true;
     const showQuickMenu = config.show_quick_menu !== false;
-    const showReset    = config.show_reset_button !== false && !this._loading && (this._energyHistory.length > 0 || (this._periodOverride || '') !== (config.default_period || ''));
+    const showReset    = config.show_reset_button !== false && !this._loading && (this._energyHistory.length > 0 || (this._periodOverride || '') !== (config.default_period || '') || this._filterOverride !== undefined);
     const dateFrom = escapeHtml(fmtDate.format(start));
     const dateTo   = escapeHtml(fmtDate.format(displayEnd));
 
@@ -4127,23 +4481,8 @@ ${(() => {
     const hourDrillable = hasNav && (this._config.aggregation?.hour === '5minute');
     const dateClickable = hasNav && this._config.show_date_links !== false && (['hour', 'day', 'week', 'month', 'year'].includes(period));
 
-    // Sortierung anwenden (nicht-destruktiv)
-    let rows = [...this._tableData];
-    if (this._sortCol !== null && this._sortCol < columns.length) {
-      const col = columns[this._sortCol];
-      const isDateCol = col.type === COL_DATE
-        || (!col.type && !col.entity && !col.template && !col.calc);
-      rows.sort((a, b) => {
-        if (isDateCol) {
-          return this._sortDir === 'asc' ? a.start - b.start : b.start - a.start;
-        }
-        const av = this._cellSortValue(a.cells[this._sortCol]);
-        const bv = this._cellSortValue(b.cells[this._sortCol]);
-        return this._sortDir === 'asc'
-          ? this._compareSortValues(av, bv)
-          : this._compareSortValues(bv, av);
-      });
-    }
+    // Filter + Sortierung anwenden (nicht-destruktiv)
+    let rows = this._sortRowsForDisplay(this._applyFilter([...this._tableData], columns), columns);
 
     const headers = columns.map((col, ci) => {
       if (col.hidden) return '';
@@ -4226,11 +4565,26 @@ ${(() => {
       return `<tr data-start="${row.start.getTime()}">${cells}</tr>`;
     }).join('');
 
+    // Zusammenfassung als letzte Zeile im tbody: gleiche Schrift und Abstände wie die übrigen
+    // Zeilen, aber ohne Spalten-Hintergrund und mit Trennlinie (CSS tr.summary-row);
+    // gerechnet über die angezeigten (gefilterten) Einträge.
+    const summaryRow = period === 'timespan' || !this._hasSummary(columns) ? '' : `<tr class="summary-row">${
+      columns.map((col, ci) => {
+        if (col.hidden) return '';
+        const isDate = col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc);
+        const styleAttr = [col.color ? `color:${col.color}` : '', ..._colExtraStyle(col)].filter(Boolean).join(';');
+        const styleStr  = styleAttr ? ` style="${styleAttr}"` : '';
+        if (isDate) return `<td${styleStr}></td>`;
+        const cmpCells = compareActive ? rows.map(r => r.compareCells?.[ci]) : null;
+        return `<td class="right"${styleStr}>${this._summaryCellContent(col, rows.map(r => r.cells[ci]), cmpCells)}</td>`;
+      }).join('')
+    }</tr>`;
+
     return `
       <table>
         ${this._config.hide_table_header ? '' : `<thead><tr>${headers}</tr></thead>`}
-        <tbody>${bodyRows}</tbody>
-      </table>`;
+        <tbody>${bodyRows}${summaryRow}</tbody>
+      </table>${this._filterInfoHtml(rows.length, this._tableData.length, columns)}`;
   }
 
   /** Columns-Modus transponiert: Zeilen = Entities/Calc, Spalten = Daten. */
@@ -4263,7 +4617,8 @@ ${(() => {
     }
 
     // Date rows in natural ascending order
-    let dateRows = [...this._tableData].sort((a, b) => a.start - b.start);
+    let dateRows = this._applyFilter([...this._tableData], columns).sort((a, b) => a.start - b.start);
+    if (!dateRows.length) return this._filterInfoHtml(0, this._tableData.length, columns);
 
     // Build entity rows (one per value column), vals indexed by dateRows position
     let entityRows = valueColIndices.map(ci => {
@@ -4332,7 +4687,10 @@ ${(() => {
     const hdrCls    = `transposed-first${hdrActive ? ' sort-row-active' : ''}`;
     const hdrAttrs  = (this._config.enable_sort === false || period === 'timespan') ? '' : ` data-trans-sort-row="-1"`;
     const hdrIconHtml = (this._config.enable_sort === false || period === 'timespan') ? '' : `<span class="sort-icon">${hdrIcon}</span>`;
-    const headers = `<th class="${hdrCls}"${hdrAttrs}${_kwPct}>${escapeHtml(entityColLabel)}${hdrIconHtml}</th>${dateHeaderCells}`;
+    // Zusammenfassung als eine zusätzliche Spalte am Ende (über die angezeigten Zeiträume)
+    const showSummary = period !== 'timespan' && this._hasSummary(columns);
+    const summaryHeaderCells = showSummary ? `<th class="right summary-cell"${_vwPct}></th>` : '';
+    const headers = `<th class="${hdrCls}"${hdrAttrs}${_kwPct}>${escapeHtml(entityColLabel)}${hdrIconHtml}</th>${dateHeaderCells}${summaryHeaderCells}`;
 
     // Body rows: first cell is sortable (click → sort date columns by this entity)
     const showBullet  = this._showColorBullet || entityRows.some(r => !r.col.hidden && r.col.bullet);
@@ -4391,7 +4749,12 @@ ${(() => {
         return `<td class="right"${styleStr}>${content}</td>`;
       }).join('');
 
-      return `<tr>${bulletTd}<td class="${firstCls}"${rowAttrs}${entityAttrFirst}${firstStyleStr ? firstStyleStr : (styleStr || '')}>${escapeHtml(label)}${sMarker}${rowIcon}</td>${valueCells}</tr>`;
+      // Zusammenfassungsspalte: ohne Zeilen-Hintergrund, abgesetzt per CSS (.summary-cell)
+      const summaryStyle = [col.color ? `color:${col.color}` : '', ...extraStyleParts].filter(Boolean).join(';');
+      const summaryCells = showSummary
+        ? `<td class="right summary-cell"${summaryStyle ? ` style="${summaryStyle}"` : ''}>${this._summaryCellContent(col, vals, compareActive ? cmpVals : null)}</td>` : '';
+
+      return `<tr>${bulletTd}<td class="${firstCls}"${rowAttrs}${entityAttrFirst}${firstStyleStr ? firstStyleStr : (styleStr || '')}>${escapeHtml(label)}${sMarker}${rowIcon}</td>${valueCells}${summaryCells}</tr>`;
     }).join('');
 
     const bulletHdrCell = showBullet ? '<th class="cell-bullet"></th>' : '';
@@ -4409,7 +4772,7 @@ ${(() => {
         ${_colgroup}
         ${_hideHdr ? '' : `<thead><tr>${bulletHdrCell}${headers}</tr></thead>`}
         <tbody>${bodyRows}</tbody>
-      </table>`;
+      </table>${this._filterInfoHtml(dateRows.length, this._tableData.length, columns)}`;
   }
 
   /** Entities-Modus transponiert: Zeilen = Entities, Spalten = Daten. */
@@ -5775,6 +6138,17 @@ class HistoryTableCardEditor extends HTMLElement {
   .checks .check-text { font-size: 14px; color: var(--primary-text-color); cursor: pointer; user-select: none; }
   .checks .check-hint { grid-column: 2; margin: -4px 0 4px; font-size: 11px; opacity: 0.65; }
   .qmi-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .flt-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .sum-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin: 2px 0 6px; }
+  .sum-opt { display: flex; align-items: center; gap: 6px; }
+  .sum-opt .check-text { font-size: 13px; cursor: pointer; user-select: none; }
+  .flt-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .flt-row .flt-join { width: 68px; flex-shrink: 0; }
+  .flt-row .flt-where { font-size: 13px; padding-left: 4px; }
+  .flt-row .flt-col { flex: 1.4; min-width: 0; }
+  .flt-row .flt-op { width: 96px; flex-shrink: 0; }
+  .flt-row .flt-src { flex: 1; min-width: 0; }
+  .flt-row .flt-val { flex: 1; min-width: 0; }
   .qmi-item { border: 1px solid var(--divider-color, #e0e0e0); border-radius: 6px; }
   .qmi-hdr { display: flex; align-items: center; padding: 8px 10px; gap: 8px; cursor: pointer;
     background: var(--secondary-background-color, rgba(0,0,0,.03)); user-select: none;
@@ -5902,6 +6276,7 @@ class HistoryTableCardEditor extends HTMLElement {
     const checks = [['show_nav_date','chk_show_nav_date'],['show_nav_buttons','chk_nav_btns'],['show_quick_menu','chk_show_quick_menu'],
       ['show_zoom_out','chk_zoom'],['show_reset_button','chk_reset'],['show_date_links','chk_date_links'],
       ['enable_sort','chk_enable_sort'],
+      ['enable_filter','chk_enable_filter'],
       ['sticky_header','chk_sticky_header'],
       ['sticky_first_col','chk_sticky_first_col'],
       ['show_color_bullet','chk_color_bullet']];
@@ -6016,6 +6391,8 @@ ${rm === 'energy' ? `<div class="field-label" style="margin:-4px 0 8px;font-size
       <span class="check-text">${escapeHtml(t('chk_color_bullet'))}</span>
     </div>` : ''}
 </div>
+${c.enable_filter ? `<div class="section-title">${t('sec_filter')}</div>
+${this._tplFilterRules(c.filter, 'cfg', c)}` : ''}
 
 <div class="section-title">${t('sec_aggregation')}</div>
 <div class="row">
@@ -6172,6 +6549,53 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
 `;
   }
 
+  /** Beschriftung einer Spalte für die Filterauswahl. */
+  _filterColLabel(col) {
+    if (!col) return '?';
+    const isDate = col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc);
+    return col.name || (isDate ? this._t('type_date') : null) || col.variable || col.entity || col.energy_key || col.type || '?';
+  }
+
+  /** Regel-Editor für Filter. scope: 'cfg' (Kartenfilter) oder 'qmi-<index>' (Schnellmenü-Eintrag). */
+  _tplFilterRules(rules, scope, c) {
+    const t = k => this._t(k);
+    const list = Array.isArray(rules) ? rules : [];
+    const cols = c.columns || [];
+    const ops  = [['=', '='], ['!=', '≠'], ['>', '>'], ['>=', '≥'], ['<', '<'], ['<=', '≤'],
+      ['contains', t('flt_op_contains')], ['not_contains', t('flt_op_not_contains')]];
+    const hasValCol = r => r.value_column !== undefined && r.value_column !== null && r.value_column !== '';
+    const attr = (ri, field) => `data-flt-scope="${scope}" data-flt-idx="${ri}" data-flt-field="${field}"`;
+    return `<div class="flt-list">
+  ${list.map((r, ri) => `<div class="flt-row">
+    ${ri === 0
+      ? `<span class="flt-join flt-where">${t('flt_where')}</span>`
+      : `<select class="hs flt-join" ${attr(ri, 'join')}>
+      <option value="and"${r.join !== 'or' ? ' selected' : ''}>${t('flt_and')}</option>
+      <option value="or"${r.join === 'or' ? ' selected' : ''}>${t('flt_or')}</option>
+    </select>`}
+    <select class="hs flt-col" ${attr(ri, 'column')}>
+      ${cols.map((col, ci) => `<option value="${ci}"${Number(r.column) === ci ? ' selected' : ''}>${escapeHtml(this._filterColLabel(col))}</option>`).join('')}
+    </select>
+    <select class="hs flt-op" ${attr(ri, 'op')}>
+      ${ops.map(([v, l]) => `<option value="${v}"${(r.op || '=') === v ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('')}
+    </select>
+    <select class="hs flt-src" ${attr(ri, 'value_src')}>
+      ${[['', 'flt_src_value'], ['row', 'flt_ref_row'], ['latest', 'flt_ref_latest'], ['last_complete', 'flt_ref_last_complete'], ['first', 'flt_ref_first'],
+         ['sum', 'flt_ref_sum'], ['max', 'flt_ref_max'], ['min', 'flt_ref_min'], ['avg', 'flt_ref_avg']]
+        .map(([v, k]) => `<option value="${v}"${(hasValCol(r) ? (r.value_ref || 'row') : '') === v ? ' selected' : ''}>${escapeHtml(t(k))}</option>`).join('')}
+    </select>
+    ${hasValCol(r)
+      ? `<select class="hs flt-val" ${attr(ri, 'value_column')}>
+      ${cols.map((col, ci) => `<option value="${ci}"${Number(r.value_column) === ci ? ' selected' : ''}>${escapeHtml(this._filterColLabel(col))}</option>`).join('')}
+    </select>`
+      : `<input class="ha-textfield flt-val" ${attr(ri, 'value')} placeholder="${t('flt_value')}" value="${escapeHtml(r.value ?? '')}">`}
+    <button class="ibtn del" data-flt-del="${scope}" data-flt-idx="${ri}">✕</button>
+  </div>`).join('')}
+  <button class="add-btn" data-flt-add="${scope}" style="margin-top:2px">${t('btn_add_filter')}</button>
+  <div class="field-label" style="font-size:11px;opacity:0.65;margin-top:4px">${t('flt_hint')}</div>
+</div>`;
+  }
+
   _tplDisplay(c) {
     const t = k => this._t(k);
     return `
@@ -6184,7 +6608,8 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
     const spl = t('stat_period_labels') || {};
     const periodLabel = item.period === 'default' ? t('qmi_period_default') : item.period ? (spl[item.period] || item.period) : '';
     const rangeLabel = itemRangeType === 'energy' ? (eL[item.energy_period] || item.energy_period || '') : itemRangeType === 'days' ? (item.days_to_show != null ? item.days_to_show + 'd' : '') : itemRangeType === 'custom_start' ? (item.custom_start || '') : '';
-    const autoLabel = item.title || [rangeLabel, periodLabel].filter(Boolean).join(' · ') || '?';
+    const filterLabel = c.enable_filter && Array.isArray(item.filter) ? t('lbl_qmi_filter') : '';
+    const autoLabel = item.title || [rangeLabel, periodLabel, filterLabel].filter(Boolean).join(' · ') || '?';
     const open = this._expandedQmi === qi;
     return `<div class="qmi-item">
   <div class="qmi-hdr${open ? '' : ' collapsed'}" data-action="toggle-qmi" data-idx="${qi}">
@@ -6272,11 +6697,32 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       <option value="horizontal"${item.layout === 'horizontal' ? ' selected' : ''}>${t('qmi_layout_transposed')}</option>
     </select>
   </div>
+  ${c.enable_filter ? `<div class="field-wrap"><span class="field-label">${t('lbl_qmi_filter')}</span>
+    <select class="hs" data-qmi-filter-mode="${qi}">
+      <option value=""${!Array.isArray(item.filter) ? ' selected' : ''}>${t('qmi_no_change')}</option>
+      <option value="set"${Array.isArray(item.filter) && item.filter.length ? ' selected' : ''}>${t('qmi_filter_set')}</option>
+      <option value="clear"${Array.isArray(item.filter) && !item.filter.length ? ' selected' : ''}>${t('qmi_filter_clear')}</option>
+    </select>
+  </div>
+  ${Array.isArray(item.filter) && item.filter.length ? this._tplFilterRules(item.filter, `qmi-${qi}`, c) : ''}` : ''}
   </div>` : ''}
 </div>`;
   }).join('') || ''}
 </div>
 <button class="add-btn" id="btn-add-qmi" style="margin-top:4px">${t('btn_add_qmi')}</button>`;
+  }
+
+  /** Auswahl Σ / max / min / avg für das Tabellenende (pro Wertspalte). */
+  _tplColSummary(col, i) {
+    const t = k => this._t(k);
+    const sel = Array.isArray(col.summary) ? col.summary : [];
+    return `<div class="sum-opts">
+    <span class="field-label" style="margin:0">${t('lbl_summary')}:</span>
+    ${SUMMARY_TYPES.map(([k, sym]) => `<div class="sum-opt">
+      <ha-checkbox data-col-summary="${k}" data-col-idx="${i}"${sel.includes(k) ? ' checked' : ''}></ha-checkbox>
+      <span class="check-text">${escapeHtml(t('sum_' + k))} (${sym})</span>
+    </div>`).join('')}
+  </div>`;
   }
 
   _tplColumnsList(c) {
@@ -6449,6 +6895,7 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       <span style="font-size:13px">${t('lbl_hidden')}</span>
     </label>
   </div>
+  ${!col.hidden ? this._tplColSummary(col, i) : ''}
   ${!col.hidden ? `
   <div class="row" style="align-items:flex-end;flex-wrap:wrap;gap:6px">
     <div class="field-wrap" style="flex:0 0 auto">
@@ -6510,6 +6957,7 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       <span style="font-size:13px">${t('lbl_hidden')}</span>
     </label>
   </div>
+  ${!col.hidden ? this._tplColSummary(col, i) : ''}
   ${!col.hidden ? `
   <div class="row" style="align-items:flex-end;flex-wrap:wrap;gap:6px">
     <div class="field-wrap" style="flex:0 0 auto">
@@ -6620,6 +7068,7 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       <span style="font-size:13px">${t('lbl_hidden')}</span>
     </label>
   </div>
+  ${!col.hidden ? this._tplColSummary(col, i) : ''}
   ${!col.hidden ? `
   <div class="row" style="align-items:flex-end;flex-wrap:wrap;gap:6px">
     <div class="field-wrap" style="flex:0 0 auto">
@@ -6756,7 +7205,11 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
 
     // global checkboxes
     sr.querySelectorAll('ha-checkbox[data-cfg-bool]').forEach(el =>
-      el.addEventListener('change', () => this._set(el.dataset.cfgBool, el.checked))
+      el.addEventListener('change', () => {
+        this._set(el.dataset.cfgBool, el.checked);
+        // Filter-Bereich und Schnellmenü-Filter ein-/ausblenden
+        if (el.dataset.cfgBool === 'enable_filter') this._render();
+      })
     );
     // Label text toggles its checkbox (replaces the removed ha-formfield; click()
     // is forwarded to the inner input by both the old mwc and the new wa checkbox)
@@ -6777,6 +7230,23 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
         if (key === 'hide_unit' || key === 'hidden') this._render(); // Felder sofort ein-/ausblenden
       });
     });
+
+    // Σ / max / min / avg am Tabellenende (pro Spalte, feste Reihenfolge)
+    sr.querySelectorAll('ha-checkbox[data-col-summary]').forEach(el => {
+      el.addEventListener('change', () => {
+        const idx  = +el.dataset.colIdx;
+        const cols = JSON.parse(JSON.stringify(this._config.columns || []));
+        const set  = new Set(Array.isArray(cols[idx].summary) ? cols[idx].summary : []);
+        if (el.checked) set.add(el.dataset.colSummary); else set.delete(el.dataset.colSummary);
+        const list = SUMMARY_TYPES.map(([k]) => k).filter(k => set.has(k));
+        if (list.length) cols[idx] = { ...cols[idx], summary: list }; else delete cols[idx].summary;
+        this._config = { ...this._config, columns: cols };
+        this._fire();
+      });
+    });
+    sr.querySelectorAll('.sum-opt .check-text').forEach(txt =>
+      txt.addEventListener('click', () => txt.closest('.sum-opt')?.querySelector('ha-checkbox')?.click())
+    );
 
     // calc column vars textarea (variable=entity_id, one per line) – legacy handler, kept for YAML backward compat
     sr.querySelectorAll('textarea[data-col-vars]').forEach(el => {
@@ -7305,6 +7775,99 @@ ${[['hour','≤ 4 h','hour'],['day','≤ 2 d','hour'],['week','≤ 10 d','day'],
       };
       sel.addEventListener('change', updateSubs);
     });
+    // ── Filterregeln: Kartenfilter (scope 'cfg') und Schnellmenü-Einträge ('qmi-<index>') ──
+    const _getFilter = scope => {
+      const list = scope === 'cfg'
+        ? this._config.filter
+        : (this._config.quick_menu_items || [])[+scope.slice(4)]?.filter;
+      return JSON.parse(JSON.stringify(Array.isArray(list) ? list : []));
+    };
+    const _setFilter = (scope, rules, rerender) => {
+      if (scope === 'cfg') {
+        const cfg = { ...this._config };
+        if (rules.length) cfg.filter = rules; else delete cfg.filter;
+        this._config = cfg;
+      } else {
+        const qi = +scope.slice(4);
+        const items = JSON.parse(JSON.stringify(this._config.quick_menu_items || []));
+        items[qi] = { ...items[qi], filter: rules };
+        this._config = { ...this._config, quick_menu_items: items };
+      }
+      this._fire();
+      if (rerender) this._render();
+    };
+    const _newFilterRule = () => {
+      const cols = this._config.columns || [];
+      const ci = cols.findIndex(col => !(col.type === COL_DATE || (!col.type && !col.entity && !col.template && !col.calc)));
+      return { column: ci >= 0 ? ci : 0, op: '>', value: '' };
+    };
+    sr.querySelectorAll('[data-flt-field]').forEach(el => {
+      el.addEventListener('change', () => {
+        const scope = el.dataset.fltScope;
+        const field = el.dataset.fltField;
+        const ri    = +el.dataset.fltIdx;
+        const rules = _getFilter(scope);
+        if (!rules[ri]) return;
+        let v = el.value;
+        if (field === 'column') v = Number(v);
+        if (field === 'value') {
+          const trimmed = v.trim();
+          v = /^-?\d+([.,]\d+)?$/.test(trimmed) ? Number(trimmed.replace(',', '.')) : v;
+        }
+        if (field === 'value_src') {
+          // Quelle des Vergleichswerts: fester Wert oder Spalte (gleiche/erste Zeile, Σ ↑ ↓ Ø)
+          const rule = rules[ri];
+          if (v === '') {
+            delete rule.value_column; delete rule.value_ref;
+          } else {
+            if (rule.value_column === undefined || rule.value_column === null || rule.value_column === '') {
+              rule.value_column = Number(rule.column) || 0;   // vorbelegt: Spalte der Regel, z. B. „A > Ø A“
+            }
+            delete rule.value;
+            if (v === 'row') delete rule.value_ref; else rule.value_ref = v;
+          }
+          _setFilter(scope, rules, true);
+          return;
+        }
+        if (field === 'value_column') {
+          rules[ri].value_column = Number(v);
+          _setFilter(scope, rules, false);
+          return;
+        }
+        if (field === 'join' && v === 'and') delete rules[ri].join;
+        else rules[ri][field] = v;
+        _setFilter(scope, rules, false);
+      });
+    });
+    sr.querySelectorAll('[data-flt-add]').forEach(btn => btn.addEventListener('click', () => {
+      const scope = btn.dataset.fltAdd;
+      const rules = _getFilter(scope);
+      rules.push(_newFilterRule());
+      _setFilter(scope, rules, true);
+    }));
+    sr.querySelectorAll('[data-flt-del]').forEach(btn => btn.addEventListener('click', () => {
+      const scope = btn.dataset.fltDel;
+      const rules = _getFilter(scope);
+      rules.splice(+btn.dataset.fltIdx, 1);
+      if (rules.length) delete rules[0].join;   // erste Regel braucht keine Verknüpfung
+      _setFilter(scope, rules, true);
+    }));
+    sr.querySelectorAll('[data-qmi-filter-mode]').forEach(sel => sel.addEventListener('change', () => {
+      const qi = +sel.dataset.qmiFilterMode;
+      const items = JSON.parse(JSON.stringify(this._config.quick_menu_items || []));
+      if (sel.value === 'set') {
+        // Startpunkt: aktueller Kartenfilter, sonst eine leere Regel
+        const base = Array.isArray(this._config.filter) && this._config.filter.length ? this._config.filter : [_newFilterRule()];
+        items[qi] = { ...items[qi], filter: JSON.parse(JSON.stringify(base)) };
+      } else if (sel.value === 'clear') {
+        items[qi] = { ...items[qi], filter: [] };
+      } else {
+        delete items[qi].filter;
+      }
+      this._config = { ...this._config, quick_menu_items: items };
+      this._fire(); this._render();
+    }));
+
     // add quick menu item
     const addQmiBtn = sr.querySelector('#btn-add-qmi');
     if (addQmiBtn) addQmiBtn.addEventListener('click', () => {

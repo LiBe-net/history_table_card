@@ -11,6 +11,8 @@ Custom Lovelace card for Home Assistant that turns long-term statistics into a f
 - Long-term statistics of any entity as table columns – `change`, `sum` and `state` for meters, `mean`, `min` and `max` for measurements
 - Energy dashboard sources as ready-made columns; the editor templates **⚡ Vertical** and **⚡ Horizontal** build a complete table from your Energy dashboard
 - Calculated columns (`calc`) with variables and Jinja2 templates, e.g. self-consumption, balance or self-sufficiency
+- Summary row at the end of the table: sum (Σ), maximum (↑), minimum (↓) and average (Ø), selectable per column, including compare values
+- Optional row filter: combine rules per column (`=`, `≠`, `>`, `≥`, `<`, `≤`, contains, does not contain) with AND/OR, compare against a fixed value, another column (same row, newest row, last completed period, oldest row) or a column's sum/max/min/average, also stored per quick menu entry
 - Time range by number of days, fixed period, custom start date or synced with the Energy date picker (`collection_key`), including compare mode
 - Adaptive aggregation from hour to year, sorting, sticky header and first column, quick menu, previous/next navigation and zoom-out
 - Vertical or transposed (horizontal) layout, colors per column and a full visual editor
